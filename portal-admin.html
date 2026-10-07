@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Admin | Toase Snr High School results</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,700&family=Public+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<style>
+  :root {
+    --paper:#f2f5f3; --card:#fff; --ink:#12332b; --muted:#55695f; --line:#d5dfd9;
+    --brand:#14503f; --brand-dark:#0d3a2d; --fail:#a3262a; --ok:#14663f; --focus:#1a6fd1;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --paper:#0d1714; --card:#15221e; --ink:#e6efea; --muted:#9db2a8; --line:#28403a;
+      --brand:#3fa17e; --brand-dark:#5cc19b; --fail:#ef7276; --ok:#5cc19b; --focus:#6aaeff; }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--paper); color:var(--ink);
+    font:16px/1.5 "Public Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .wrap { max-width:620px; margin:0 auto; padding:18px 14px 50px; }
+  h1,h2 { font-family:"Newsreader", Georgia, serif; line-height:1.2; margin:0; }
+  h1 { font-size:1.45rem; color:var(--brand-dark); }
+  h2 { font-size:1.25rem; margin-bottom:6px; }
+  .top { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:14px; }
+  .muted { color:var(--muted); font-size:.92rem; }
+  .panel { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:18px 16px 20px; margin-bottom:14px; }
+  label { display:block; font-weight:600; font-size:.92rem; margin:12px 0 5px; }
+  input, select { width:100%; font:inherit; padding:11px 12px; border:1.5px solid var(--line);
+    border-radius:8px; background:var(--paper); color:var(--ink); }
+  input:focus-visible, button:focus-visible, select:focus-visible { outline:3px solid var(--focus); outline-offset:2px; }
+  button { font:inherit; font-weight:600; cursor:pointer; border:0; border-radius:8px; padding:12px 14px; }
+  .btn { background:var(--brand); color:#fff; width:100%; margin-top:16px; }
+  @media (prefers-color-scheme: dark) { .btn { color:#06150f; } }
+  .btn:disabled { opacity:.5; cursor:not-allowed; }
+  .btn-line { background:transparent; color:var(--brand-dark); border:1.5px solid var(--line); }
+  .row { display:flex; gap:10px; }
+  .row > * { flex:1; }
+  .tabs { display:flex; gap:6px; margin-bottom:14px; }
+  .tabs button { flex:1; background:transparent; border:1.5px solid var(--line); color:var(--muted); padding:10px 6px; }
+  .tabs button[aria-selected="true"] { background:var(--brand); border-color:var(--brand); color:#fff; }
+  @media (prefers-color-scheme: dark) { .tabs button[aria-selected="true"] { color:#06150f; } }
+  .stats { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .stat { border:1px solid var(--line); border-radius:8px; padding:12px; }
+  .stat b { display:block; font-family:"Newsreader", Georgia, serif; font-size:1.7rem; line-height:1.1; }
+  .stat span { color:var(--muted); font-size:.85rem; }
+  .msg { margin-top:14px; padding:10px 12px; border-radius:6px; border-left:4px solid var(--line); font-size:.94rem; }
+  .msg.err { border-color:var(--fail); }
+  .msg.ok { border-color:var(--ok); }
+  .errs { margin:8px 0 0; padding-left:18px; font-size:.88rem; max-height:220px; overflow:auto; }
+  textarea { width:100%; min-height:200px; font:0.95rem ui-monospace, Menlo, Consolas, monospace;
+    padding:10px; border:1.5px solid var(--line); border-radius:8px; background:var(--paper); color:var(--ink); margin-top:10px; }
+  [hidden] { display:none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- LOGIN -->
+  <section id="loginView" class="panel" hidden>
+    <h1>Admin sign in</h1>
+    <p class="muted">Toase Snr High School results portal</p>
+    <form id="loginForm">
+      <label for="email">Email</label>
+      <input id="email" type="email" autocomplete="username" required>
+      <label for="password">Password</label>
+      <input id="password" type="password" autocomplete="current-password" required>
+      <div id="loginMsg" class="msg err" role="alert" hidden></div>
+      <button class="btn" id="loginBtn" type="submit">Sign in</button>
+    </form>
+  </section>
+
+  <!-- DASHBOARD -->
+  <section id="appView" hidden>
+    <div class="top">
+      <div>
+        <h1>Results admin</h1>
+        <div class="muted" id="who"></div>
+      </div>
+      <button class="btn-line" id="logoutBtn" type="button">Sign out</button>
+    </div>
+
+    <div class="tabs" role="tablist">
+      <button role="tab" id="tab-over" aria-selected="true" data-tab="over">Overview</button>
+      <button role="tab" id="tab-up" aria-selected="false" data-tab="up">Upload</button>
+      <button role="tab" id="tab-codes" aria-selected="false" data-tab="codes">Codes</button>
+    </div>
+
+    <!-- Overview -->
+    <div id="pane-over" class="panel">
+      <h2>Overview</h2>
+      <div class="stats" id="stats"></div>
+      <button class="btn btn-line" id="refreshBtn" type="button" style="width:100%;margin-top:14px">Refresh</button>
+    </div>
+
+    <!-- Upload -->
+    <div id="pane-up" class="panel" hidden>
+      <h2>Upload results</h2>
+      <p class="muted">Use a CSV file with one row per student per subject. Existing students with the same index number and year are updated.</p>
+      <button class="btn btn-line" id="tplBtn" type="button" style="width:100%;margin-top:8px">Download template</button>
+      <label for="csvFile">Choose CSV file</label>
+      <input id="csvFile" type="file" accept=".csv,text/csv">
+      <div id="upMsg" class="msg" hidden></div>
+      <button class="btn" id="importBtn" type="button" disabled>Import</button>
+    </div>
+
+    <!-- Codes -->
+    <div id="pane-codes" class="panel" hidden>
+      <h2>Checker codes</h2>
+      <p class="muted">Codes are shown only once, right after you create them. Copy or download them before leaving this page.</p>
+      <div class="row">
+        <div><label for="cCount">How many</label><input id="cCount" type="number" min="1" max="5000" value="20"></div>
+        <div><label for="cYear">Exam year</label><input id="cYear" type="number" min="2000" max="2100" value="2026"></div>
+      </div>
+      <div class="row">
+        <div><label for="cBatch">Batch name</label><input id="cBatch" type="text" value="Batch 1" maxlength="100"></div>
+        <div><label for="cUses">Checks per code</label><input id="cUses" type="number" min="1" max="20" value="5"></div>
+      </div>
+      <div id="cMsg" class="msg" hidden></div>
+      <button class="btn" id="genBtn" type="button">Generate codes</button>
+      <div id="codesOut" hidden>
+        <textarea id="codesText" readonly></textarea>
+        <div class="row" style="margin-top:10px">
+          <button class="btn-line" id="copyBtn" type="button">Copy all</button>
+          <button class="btn-line" id="dlBtn" type="button">Download CSV</button>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+  // ---- Settings: paste your project's Publishable key below ----
+  const SUPABASE_URL = "https://uzrejoihtqgjigywymlj.supabase.co";
+  const SUPABASE_KEY = "sb_publishable_5xu7TIwtCoa3Fo2BNZwnJw_EB9yFHQl";
+
+  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  const $ = (id) => document.getElementById(id);
+
+  function show(el, cls, text) {
+    el.className = "msg " + (cls || "");
+    el.textContent = text;
+    el.hidden = false;
+  }
+
+  /* ---------- Sign in / out ---------- */
+  async function enter(session) {
+    const { data: isAdmin, error } = await sb.rpc("is_admin");
+    if (error || !isAdmin) {
+      await sb.auth.signOut();
+      $("appView").hidden = true;
+      $("loginView").hidden = false;
+      show($("loginMsg"), "err", "This account is not allowed to use the admin area.");
+      return;
+    }
+    $("who").textContent = session.user.email;
+    $("loginView").hidden = true;
+    $("appView").hidden = false;
+    loadStats();
+  }
+
+  $("loginForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    $("loginMsg").hidden = true;
+    $("loginBtn").disabled = true;
+    const { data, error } = await sb.auth.signInWithPassword({
+      email: $("email").value.trim(),
+      password: $("password").value,
+    });
+    $("loginBtn").disabled = false;
+    if (error || !data.session) {
+      show($("loginMsg"), "err", "Wrong email or password.");
+      return;
+    }
+    $("password").value = "";
+    enter(data.session);
+  });
+
+  $("logoutBtn").addEventListener("click", async () => {
+    await sb.auth.signOut();
+    location.reload();
+  });
+
+  (async () => {
+    const { data } = await sb.auth.getSession();
+    if (data.session) enter(data.session);
+    else $("loginView").hidden = false;
+  })();
+
+  /* ---------- Tabs ---------- */
+  document.querySelectorAll(".tabs button").forEach((b) => {
+    b.addEventListener("click", () => {
+      document.querySelectorAll(".tabs button").forEach((x) =>
+        x.setAttribute("aria-selected", x === b ? "true" : "false"));
+      ["over", "up", "codes"].forEach((t) => ($("pane-" + t).hidden = t !== b.dataset.tab));
+      if (b.dataset.tab === "over") loadStats();
+    });
+  });
+
+  /* ---------- Overview ---------- */
+  async function loadStats() {
+    const box = $("stats");
+    box.textContent = "";
+    const { data, error } = await sb.rpc("admin_stats");
+    if (error || !data) { box.textContent = "Could not load numbers."; return; }
+    const items = [
+      ["Students", data.students], ["Result rows", data.results],
+      ["Codes made", data.codes_total], ["Codes used", data.codes_used],
+      ["Checks today", data.checks_today], ["Failed today", data.failed_today],
+    ];
+    items.forEach(([label, val]) => {
+      const d = document.createElement("div"); d.className = "stat";
+      const b = document.createElement("b"); b.textContent = Number(val ?? 0).toLocaleString();
+      const s = document.createElement("span"); s.textContent = label;
+      d.append(b, s); box.append(d);
+    });
+  }
+  $("refreshBtn").addEventListener("click", loadStats);
+
+  /* ---------- CSV upload ---------- */
+  const REQUIRED = ["index_number","full_name","date_of_birth","exam_type","exam_year","subject_code","subject_name","grade"];
+  const TEMPLATE =
+    "index_number,full_name,date_of_birth,school_name,exam_type,exam_year,subject_code,subject_name,grade,score\n" +
+    "0140101001,Kofi Mensah,2008-05-14,Toase Snr High School,WASSCE,2026,ENG,English Language,B2,72\n" +
+    "0140101001,Kofi Mensah,2008-05-14,Toase Snr High School,WASSCE,2026,MAT,Core Mathematics,B3,68\n";
+
+  function download(name, text, type) {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([text], { type: type || "text/csv" }));
+    a.download = name;
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  }
+  $("tplBtn").addEventListener("click", () => download("results-template.csv", TEMPLATE));
+
+  function parseCSV(text) {
+    text = text.replace(/^\uFEFF/, "");
+    const rows = []; let row = [], cur = "", q = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (q) {
+        if (c === '"') { if (text[i + 1] === '"') { cur += '"'; i++; } else q = false; }
+        else cur += c;
+      } else if (c === '"') q = true;
+      else if (c === ",") { row.push(cur); cur = ""; }
+      else if (c === "\n") { row.push(cur); rows.push(row); row = []; cur = ""; }
+      else if (c !== "\r") cur += c;
+    }
+    if (cur !== "" || row.length) { row.push(cur); rows.push(row); }
+    return rows.filter((r) => r.some((x) => x.trim() !== ""));
+  }
+
+  function normDate(s) {
+    s = String(s || "").trim();
+    let y, m, d, mt;
+    if ((mt = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/))) { y = +mt[1]; m = +mt[2]; d = +mt[3]; }
+    else if ((mt = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/))) { d = +mt[1]; m = +mt[2]; y = +mt[3]; }
+    else return null;
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== m - 1 || dt.getUTCDate() !== d) return null;
+    return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+  }
+
+  let pending = [];
+
+  $("csvFile").addEventListener("change", async (e) => {
+    pending = [];
+    $("importBtn").disabled = true;
+    const f = e.target.files[0];
+    if (!f) { $("upMsg").hidden = true; return; }
+    const rows = parseCSV(await f.text());
+    if (rows.length < 2) { show($("upMsg"), "err", "The file has no data rows."); return; }
+
+    const head = rows[0].map((h) => h.trim().toLowerCase());
+    const missing = REQUIRED.filter((c) => !head.includes(c));
+    if (missing.length) { show($("upMsg"), "err", "Missing columns: " + missing.join(", ")); return; }
+    const col = (n) => head.indexOf(n);
+
+    const errors = [], out = [], seen = new Set(), students = new Set();
+    for (let i = 1; i < rows.length; i++) {
+      const r = rows[i], line = i + 1;
+      const g = (n) => (col(n) >= 0 ? (r[col(n)] ?? "").trim() : "");
+      const idx = g("index_number").toUpperCase();
+      const name = g("full_name"), sc = g("subject_code").toUpperCase();
+      const grade = g("grade").toUpperCase(), year = parseInt(g("exam_year"), 10);
+      const dob = normDate(g("date_of_birth")), score = g("score");
+
+      if (!/^[A-Z0-9\-\/]{4,30}$/.test(idx)) errors.push(`Row ${line}: bad index number`);
+      if (!name) errors.push(`Row ${line}: name is empty`);
+      if (!dob) errors.push(`Row ${line}: date of birth must look like 2008-05-14 or 14/05/2008`);
+      if (!g("exam_type")) errors.push(`Row ${line}: exam_type is empty`);
+      if (!(year >= 2000 && year <= 2100)) errors.push(`Row ${line}: exam_year is not valid`);
+      if (!sc) errors.push(`Row ${line}: subject_code is empty`);
+      if (!g("subject_name")) errors.push(`Row ${line}: subject_name is empty`);
+      if (!/^[A-Z0-9]{1,5}$/.test(grade)) errors.push(`Row ${line}: grade is not valid`);
+      if (score !== "" && !(Number(score) >= 0 && Number(score) <= 100)) errors.push(`Row ${line}: score must be 0 to 100`);
+      const key = idx + "|" + year + "|" + sc;
+      if (seen.has(key)) errors.push(`Row ${line}: ${idx} has ${sc} twice`);
+      seen.add(key);
+      students.add(idx + "|" + year);
+
+      out.push({
+        index_number: idx, full_name: name, date_of_birth: dob,
+        school_name: g("school_name"), exam_type: g("exam_type"), exam_year: year,
+        subject_code: sc, subject_name: g("subject_name"), grade: grade, score: score,
+      });
+    }
+
+    const box = $("upMsg");
+    if (errors.length) {
+      show(box, "err", `Found ${errors.length} problem(s). Fix the file and choose it again:`);
+      const ul = document.createElement("ul"); ul.className = "errs";
+      errors.slice(0, 25).forEach((t) => { const li = document.createElement("li"); li.textContent = t; ul.append(li); });
+      if (errors.length > 25) { const li = document.createElement("li"); li.textContent = `...and ${errors.length - 25} more`; ul.append(li); }
+      box.append(ul);
+      return;
+    }
+    pending = out;
+    show(box, "ok", `File is valid: ${students.size} students, ${out.length} result rows. Tap Import to save.`);
+    $("importBtn").disabled = false;
+  });
+
+  $("importBtn").addEventListener("click", async () => {
+    if (!pending.length) return;
+    const btn = $("importBtn"); btn.disabled = true;
+    const CHUNK = 500; let done = 0;
+    for (let i = 0; i < pending.length; i += CHUNK) {
+      const part = pending.slice(i, i + CHUNK);
+      const { error } = await sb.rpc("admin_import_results", { p_rows: part });
+      if (error) {
+        show($("upMsg"), "err", `Stopped after ${done} rows. ${error.message}`);
+        btn.disabled = false; return;
+      }
+      done += part.length;
+      show($("upMsg"), "", `Importing... ${done} of ${pending.length}`);
+    }
+    show($("upMsg"), "ok", `Done. ${done} result rows saved.`);
+    pending = []; $("csvFile").value = "";
+  });
+
+  /* ---------- Checker codes ---------- */
+  let lastCodes = [];
+  $("genBtn").addEventListener("click", async () => {
+    const count = parseInt($("cCount").value, 10), year = parseInt($("cYear").value, 10);
+    const uses = parseInt($("cUses").value, 10), batch = $("cBatch").value.trim() || null;
+    if (!(count >= 1 && count <= 5000) || !(year >= 2000) || !(uses >= 1)) {
+      show($("cMsg"), "err", "Check the numbers: 1 to 5000 codes, a valid year, and at least 1 check per code.");
+      return;
+    }
+    $("genBtn").disabled = true;
+    const { data, error } = await sb.rpc("admin_generate_codes",
+      { p_count: count, p_exam_year: year, p_batch: batch, p_max_uses: uses });
+    $("genBtn").disabled = false;
+    if (error) { show($("cMsg"), "err", error.message); return; }
+    lastCodes = data.map((r) => r.code);
+    $("codesText").value = lastCodes.join("\n");
+    $("codesOut").hidden = false;
+    show($("cMsg"), "ok", `${lastCodes.length} codes created. Copy or download them now.`);
+  });
+
+  $("copyBtn").addEventListener("click", async () => {
+    try { await navigator.clipboard.writeText(lastCodes.join("\n")); show($("cMsg"), "ok", "Copied."); }
+    catch { $("codesText").select(); show($("cMsg"), "", "Select the text and copy it."); }
+  });
+  $("dlBtn").addEventListener("click", () => {
+    const batch = ($("cBatch").value.trim() || "codes").replace(/[^A-Za-z0-9_-]+/g, "_");
+    download(`checker-codes-${batch}.csv`, "code\n" + lastCodes.join("\n") + "\n");
+  });
+</script>
+</body>
+</html>
