@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Check your results | Toase Snr High School</title>
+<meta name="description" content="Check your examination results online with your index number and results checker code.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,700&family=Public+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #f2f5f3;
+    --card: #ffffff;
+    --ink: #12332b;
+    --muted: #55695f;
+    --line: #d5dfd9;
+    --brand: #14503f;
+    --brand-dark: #0d3a2d;
+    --gold: #b4832a;
+    --good: #14663f;
+    --fair: #8a6100;
+    --weak: #a14a12;
+    --fail: #a3262a;
+    --focus: #1a6fd1;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #0d1714;
+      --card: #15221e;
+      --ink: #e6efea;
+      --muted: #9db2a8;
+      --line: #28403a;
+      --brand: #3fa17e;
+      --brand-dark: #5cc19b;
+      --gold: #d9a94b;
+      --good: #5cc19b;
+      --fair: #e0b650;
+      --weak: #e58a4f;
+      --fail: #ef7276;
+      --focus: #6aaeff;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "Public Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-size: 16px;
+    line-height: 1.5;
+    min-height: 100vh;
+  }
+  .wrap { max-width: 460px; margin: 0 auto; padding: 20px 16px 40px; }
+
+  header.school { padding: 8px 2px 18px; }
+  header.school .name {
+    font-family: "Newsreader", Georgia, serif;
+    font-weight: 700;
+    font-size: 1.5rem;
+    line-height: 1.2;
+    color: var(--brand-dark);
+    margin: 0;
+  }
+  header.school .sub { margin: 4px 0 0; color: var(--muted); font-size: .92rem; }
+
+  .panel {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 20px 18px 22px;
+  }
+  .panel h1 {
+    font-family: "Newsreader", Georgia, serif;
+    font-size: 1.45rem;
+    margin: 0 0 4px;
+    line-height: 1.25;
+  }
+  .panel p.lead { margin: 0 0 18px; color: var(--muted); font-size: .95rem; }
+
+  label { display: block; font-weight: 600; font-size: .92rem; margin: 14px 0 6px; }
+  .hint { font-weight: 400; color: var(--muted); font-size: .84rem; margin: 4px 0 0; }
+  input {
+    width: 100%;
+    font: inherit;
+    padding: 12px 12px;
+    border: 1.5px solid var(--line);
+    border-radius: 8px;
+    background: var(--paper);
+    color: var(--ink);
+  }
+  input.code { font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; letter-spacing: .08em; text-transform: uppercase; }
+  input:focus-visible, button:focus-visible {
+    outline: 3px solid var(--focus);
+    outline-offset: 2px;
+  }
+
+  button {
+    font: inherit;
+    cursor: pointer;
+    border: 0;
+    border-radius: 8px;
+    padding: 13px 16px;
+    font-weight: 600;
+  }
+  .btn-main { width: 100%; margin-top: 20px; background: var(--brand); color: #fff; }
+  @media (prefers-color-scheme: dark) { .btn-main { color: #06150f; } }
+  .btn-main:disabled { opacity: .65; cursor: wait; }
+  .btn-line { background: transparent; color: var(--brand-dark); border: 1.5px solid var(--line); }
+
+  .error {
+    margin-top: 16px;
+    padding: 11px 12px;
+    border-left: 4px solid var(--fail);
+    background: color-mix(in srgb, var(--fail) 10%, var(--card));
+    border-radius: 6px;
+    font-size: .94rem;
+  }
+  .error strong { display: block; }
+
+  .trust { margin: 16px 2px 0; color: var(--muted); font-size: .85rem; }
+
+  /* Result slip */
+  .slip {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-top: 6px solid var(--brand);
+    border-radius: 4px 4px 10px 10px;
+    padding: 20px 18px 8px;
+  }
+  .slip .exam { margin: 0; color: var(--muted); font-size: .9rem; }
+  .slip h2 {
+    font-family: "Newsreader", Georgia, serif;
+    font-size: 1.6rem;
+    line-height: 1.2;
+    margin: 4px 0 14px;
+  }
+  .meta { margin: 0 0 16px; padding: 0; display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; font-size: .92rem; }
+  .meta dt { color: var(--muted); }
+  .meta dd { margin: 0; font-weight: 500; overflow-wrap: anywhere; }
+
+  table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+  caption { text-align: left; font-weight: 600; padding: 4px 0 8px; }
+  th, td { text-align: left; padding: 11px 6px; border-top: 1px solid var(--line); }
+  th { font-size: .85rem; color: var(--muted); font-weight: 500; }
+  td.num, th.num { text-align: right; }
+  td.grade { text-align: right; font-weight: 700; font-size: 1.15rem; width: 64px; }
+  .g-good { color: var(--good); }
+  .g-fair { color: var(--fair); }
+  .g-weak { color: var(--weak); }
+  .g-fail { color: var(--fail); }
+
+  .slip-actions { display: flex; gap: 10px; margin-top: 14px; }
+  .slip-actions button { flex: 1; }
+  .slip-actions .btn-main { margin-top: 0; width: auto; }
+  .note { color: var(--muted); font-size: .82rem; margin: 14px 2px 0; }
+
+  [hidden] { display: none !important; }
+
+  @media print {
+    body { background: #fff; color: #000; }
+    header.school .sub, .slip-actions, .note, .trust { display: none; }
+    .slip { border: 1px solid #999; border-top: 6px solid #000; }
+    .g-good, .g-fair, .g-weak, .g-fail { color: #000; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="school">
+    <p class="name">Toase Snr High School</p>
+    <p class="sub">Online results</p>
+  </header>
+
+  <main>
+    <section id="formView" class="panel" aria-labelledby="formTitle">
+      <h1 id="formTitle">Check your results</h1>
+      <p class="lead">Enter the details exactly as they appear on your index slip and results checker card.</p>
+
+      <form id="checkForm" novalidate autocomplete="off">
+        <label for="index">Index number</label>
+        <input id="index" name="index" type="text" inputmode="text" autocapitalize="characters" required maxlength="30">
+
+        <label for="code">Results checker code</label>
+        <input id="code" name="code" class="code" type="text" inputmode="text" autocapitalize="characters" placeholder="XXXX-XXXX-XXXX" required maxlength="14">
+        <p class="hint">12 characters, found on your checker card or sent after payment.</p>
+
+        <label for="dob">Date of birth</label>
+        <input id="dob" name="dob" type="date" required>
+
+        <div id="errorBox" class="error" role="alert" hidden></div>
+
+        <button id="submitBtn" class="btn-main" type="submit">Check result</button>
+      </form>
+    </section>
+
+    <p class="trust" id="trustNote">Your checker code works with your own index number only. Never share it.</p>
+
+    <section id="resultView" hidden aria-live="polite">
+      <article class="slip" id="slip">
+        <p class="exam" id="rExam"></p>
+        <h2 id="rName"></h2>
+        <dl class="meta">
+          <dt>Index number</dt><dd id="rIndex"></dd>
+          <dt>School</dt><dd id="rSchool"></dd>
+          <dt>Year</dt><dd id="rYear"></dd>
+        </dl>
+        <table>
+          <caption>Subject results</caption>
+          <thead><tr><th scope="col">Subject</th><th scope="col" class="num">Score</th><th scope="col" class="num">Grade</th></tr></thead>
+          <tbody id="rRows"></tbody>
+        </table>
+        <div class="slip-actions">
+          <button type="button" class="btn-main" id="printBtn">Print or save as PDF</button>
+          <button type="button" class="btn-line" id="againBtn">Check another</button>
+        </div>
+      </article>
+      <p class="note">This page is not an official certificate. Report any error to the school office.</p>
+    </section>
+  </main>
+</div>
+
+<script>
+  // 1) After you deploy the Edge Function, paste its URL here:
+  const FUNCTION_URL = "https://uzrejoihtqgjigywymlj.supabase.co/functions/v1/swift-handler";
+
+  const $ = (id) => document.getElementById(id);
+  const form = $("checkForm");
+  const errorBox = $("errorBox");
+  const submitBtn = $("submitBtn");
+
+  // Auto-format the checker code as XXXX-XXXX-XXXX
+  $("code").addEventListener("input", (e) => {
+    const raw = e.target.value.replace(/[^A-Za-z0-9]/g, "").toUpperCase().slice(0, 12);
+    e.target.value = raw.match(/.{1,4}/g)?.join("-") ?? "";
+  });
+
+  function showError(msg) {
+    errorBox.textContent = "";
+    const strong = document.createElement("strong");
+    strong.textContent = "We could not show a result.";
+    errorBox.append(strong, msg);
+    errorBox.hidden = false;
+  }
+
+  function gradeClass(g) {
+    const n = parseInt(String(g).replace(/\D/g, ""), 10);
+    if (isNaN(n)) return "";
+    if (n <= 3) return "g-good";
+    if (n <= 6) return "g-fair";
+    if (n <= 8) return "g-weak";
+    return "g-fail";
+  }
+
+  function showResult(d) {
+    $("rExam").textContent = `${d.exam} ${d.year}`;
+    $("rName").textContent = d.name;
+    $("rIndex").textContent = d.index_number;
+    $("rSchool").textContent = d.school || "-";
+    $("rYear").textContent = d.year;
+
+    const rows = $("rRows");
+    rows.textContent = "";
+    (d.results || []).forEach((r) => {
+      const tr = document.createElement("tr");
+      const tdS = document.createElement("td"); tdS.textContent = r.subject;
+      const tdN = document.createElement("td"); tdN.className = "num";
+      tdN.textContent = r.score == null ? "-" : Number(r.score).toString();
+      const tdG = document.createElement("td"); tdG.className = "grade " + gradeClass(r.grade);
+      tdG.textContent = r.grade;
+      tr.append(tdS, tdN, tdG);
+      rows.append(tr);
+    });
+    if (!d.results || !d.results.length) {
+      const tr = document.createElement("tr");
+      const td = document.createElement("td");
+      td.colSpan = 3; td.textContent = "No subject results have been published for this index number yet.";
+      tr.append(td); rows.append(tr);
+    }
+
+    $("formView").hidden = true;
+    $("trustNote").hidden = true;
+    $("resultView").hidden = false;
+    window.scrollTo({ top: 0 });
+  }
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    errorBox.hidden = true;
+
+    const index = $("index").value.trim();
+    const code = $("code").value.trim();
+    const dob = $("dob").value;
+
+    if (!index || code.replace(/-/g, "").length !== 12 || !dob) {
+      showError("Fill in your index number, the 12-character checker code, and your date of birth.");
+      return;
+    }
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Checking...";
+
+    try {
+      const res = await fetch(FUNCTION_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ index, code, dob }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (data && data.ok) {
+        showResult(data);
+      } else {
+        showError(data.error || "Check your details and try again.");
+      }
+    } catch (err) {
+      showError("No connection. Check your internet and try again.");
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Check result";
+    }
+  });
+
+  $("printBtn").addEventListener("click", () => window.print());
+  $("againBtn").addEventListener("click", () => {
+    form.reset();
+    $("resultView").hidden = true;
+    $("formView").hidden = false;
+    $("trustNote").hidden = false;
+    window.scrollTo({ top: 0 });
+  });
+</script>
+</body>
+</html>
