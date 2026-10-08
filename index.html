@@ -203,4 +203,78 @@
   }
   function gradeClass(g) {
     const n = parseInt(String(g).replace(/\D/g, ""), 10);
-    if (isNaN(n)) return ""; if (n <= 3) return "g-good"; if (n <= 6) return "g-fair"; if (n
+    if (isNaN(n)) return "";
+    if (n <= 3) return "g-good";
+    if (n <= 6) return "g-fair";
+    if (n <= 8) return "g-weak";
+    return "g-fail";
+  }
+
+  function pick(o, keys) {
+    for (const k of keys) if (o && o[k] != null && o[k] !== "") return o[k];
+    return "";
+  }
+
+  function showSlip(d, index) {
+    const st = d.student || d;
+    $("rName").textContent = pick(st, ["full_name", "name", "student_name"]);
+    $("rIndex").textContent = pick(st, ["index_number", "index"]) || index;
+    $("rSchool").textContent = pick(d, ["school_name"]) || pick(school, ["school_name"]) || "Toase Snr High School";
+    const examType = pick(d, ["exam_type"]) || pick(st, ["exam_type"]);
+    const year = pick(d, ["exam_year", "academic_year", "year"]) || pick(st, ["exam_year", "academic_year", "year"]);
+    $("rExam").textContent = examType;
+    $("rYear").textContent = year;
+
+    const list = d.results || d.subjects || d.rows || st.results || [];
+    const tbody = $("rRows"); tbody.textContent = "";
+    list.forEach((r) => {
+      const tr = document.createElement("tr");
+      const a = document.createElement("td"); a.textContent = pick(r, ["subject_name", "subject"]);
+      const b = document.createElement("td"); b.className = "num"; b.textContent = pick(r, ["score", "total"]);
+      const g = pick(r, ["grade"]);
+      const c = document.createElement("td"); c.className = "grade " + gradeClass(g); c.textContent = g;
+      tr.append(a, b, c); tbody.append(tr);
+    });
+
+    const head = pick(d, ["headmaster"]) || pick(school, ["headmaster", "headmaster_name", "head_name"]);
+    $("rHead").textContent = head; $("rSign").hidden = !head;
+
+    $("formView").hidden = true; $("trustNote").hidden = true; $("resultView").hidden = false;
+    window.scrollTo(0, 0);
+  }
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    errorBox.hidden = true;
+    const index = $("index").value.trim().toUpperCase();
+    const code = $("code").value.trim();
+    const dob = $("dob").value;
+    if (!index || !code || !dob) { showError(" Enter your index number, checker code and date of birth."); return; }
+    submitBtn.disabled = true; submitBtn.textContent = "Checking...";
+    try {
+      const res = await fetch(FUNCTION_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "apikey": SUPABASE_KEY },
+        body: JSON.stringify({ index, code, dob }),
+      });
+      let data = null;
+      try { data = await res.json(); } catch (_) {}
+      if (!res.ok || !data || !data.ok) {
+        showError(" " + ((data && (data.error || data.message || data.msg)) || "Something went wrong. Please try again."));
+        return;
+      }
+      showSlip(data, index);
+    } catch (err) {
+      showError(" Network problem. Check your internet and try again.");
+    } finally {
+      submitBtn.disabled = false; submitBtn.textContent = "Check result";
+    }
+  });
+
+  $("printBtn").addEventListener("click", () => window.print());
+  $("againBtn").addEventListener("click", () => {
+    form.reset(); $("resultView").hidden = true; $("formView").hidden = false; $("trustNote").hidden = false;
+  });
+</script>
+</body>
+</html>
