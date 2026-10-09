@@ -42,6 +42,7 @@
   .btn:disabled { opacity:.5; cursor:not-allowed; }
   .btn-line { background:transparent; color:var(--brand-dark); border:1.5px solid var(--line); }
   .btn-danger { background:transparent; color:var(--fail); border:1.5px solid var(--fail); width:100%; margin-top:10px; }
+  .btn-danger:disabled { opacity:.45; cursor:not-allowed; }
   .row { display:flex; gap:10px; }
   .row > * { flex:1; min-width:0; }
   .tabs { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px; }
@@ -64,6 +65,8 @@
   .subj .row { margin-top:8px; align-items:end; }
   .subj label { margin:0 0 3px; font-size:.8rem; font-weight:500; color:var(--muted); }
   .subj .x { flex:0 0 auto; padding:10px 12px; color:var(--fail); background:transparent; border:1.5px solid var(--line); }
+  .clean-card { border:1px solid var(--line); border-radius:8px; padding:12px; margin-top:12px; background:var(--paper); }
+  .clean-card h2 { font-size:1.05rem; }
   [hidden] { display:none !important; }
 </style>
 </head>
@@ -101,6 +104,7 @@
       <button role="tab" aria-selected="false" data-tab="stu">Students</button>
       <button role="tab" aria-selected="false" data-tab="codes">Codes</button>
       <button role="tab" aria-selected="false" data-tab="school">School</button>
+      <button role="tab" aria-selected="false" data-tab="clean">Clean up</button>
     </div>
 
     <!-- Home -->
@@ -162,7 +166,7 @@
       </div>
       <div class="row">
         <div><label for="cBatch">Batch name</label><input id="cBatch" type="text" value="Batch 1" maxlength="100"></div>
-        <div><label for="cUses">Checks per code</label><input id="cUses" type="number" min="1" max="20" value="5"></div>
+        <div><label for="cUses">Checks per code</label><input id="cUses" type="number" min="1" max="20" value="3"></div>
       </div>
       <div id="cMsg" class="msg" hidden></div>
       <button class="btn" id="genBtn" type="button">Generate codes</button>
@@ -191,6 +195,44 @@
       <label for="sAddr">Address</label><input id="sAddr" maxlength="200">
       <div id="schMsg" class="msg" hidden></div>
       <button class="btn" id="saveSchool" type="button">Save school details</button>
+    </div>
+
+    <!-- Clean up -->
+    <div id="pane-clean" class="panel" hidden>
+      <h2>Clean up space</h2>
+      <p class="muted">Free up database space. Each action first shows how many rows it will delete. Deleting cannot be undone.</p>
+
+      <div class="clean-card">
+        <h2>Old activity logs</h2>
+        <p class="muted">Deletes log entries older than the number of days you choose (30 or more).</p>
+        <label for="clDays">Older than (days)</label>
+        <input id="clDays" type="number" min="30" max="3650" value="90">
+        <div id="clLogsMsg" class="msg" hidden></div>
+        <button class="btn btn-line" id="clLogsCount" type="button">Check how many</button>
+        <button class="btn-danger" id="clLogsDel" type="button" disabled>Delete these logs</button>
+      </div>
+
+      <div class="clean-card">
+        <h2>Used and expired codes</h2>
+        <p class="muted">Deletes codes that have run out of checks or were retired. Codes that still work are kept.</p>
+        <div id="clCodesMsg" class="msg" hidden></div>
+        <button class="btn btn-line" id="clCodesCount" type="button">Check how many</button>
+        <button class="btn-danger" id="clCodesDel" type="button" disabled>Delete these codes</button>
+      </div>
+
+      <div class="clean-card">
+        <h2>Old results</h2>
+        <p class="muted">Deletes the subject scores for one year and one semester. Students stay in the system.</p>
+        <div class="row">
+          <div><label for="clYear">Exam year</label><input id="clYear" type="number" min="2000" max="2100" value="2026"></div>
+          <div><label for="clSem">Semester</label>
+            <select id="clSem"><option value="1">Semester 1</option><option value="2">Semester 2</option><option value="3">Semester 3</option></select>
+          </div>
+        </div>
+        <div id="clResMsg" class="msg" hidden></div>
+        <button class="btn btn-line" id="clResCount" type="button">Check how many</button>
+        <button class="btn-danger" id="clResDel" type="button" disabled>Delete these results</button>
+      </div>
     </div>
   </section>
 </div>
@@ -230,7 +272,7 @@
   })();
 
   /* ---------- Tabs ---------- */
-  const TABS = ["over", "up", "stu", "codes", "school"];
+  const TABS = ["over", "up", "stu", "codes", "school", "clean"];
   document.querySelectorAll(".tabs button").forEach((b) => b.addEventListener("click", () => {
     document.querySelectorAll(".tabs button").forEach((x) => x.setAttribute("aria-selected", x === b ? "true" : "false"));
     TABS.forEach((t) => ($("pane-" + t).hidden = t !== b.dataset.tab));
@@ -476,6 +518,57 @@
     $("hdrName").textContent = payload.school_name;
     show($("schMsg"), "ok", "Saved. The students' page shows the new details.");
   });
+
+  /* ---------- Clean up ---------- */
+  const CLEAN = {
+    logs: {
+      count: "clLogsCount", del: "clLogsDel", msg: "clLogsMsg", action: "audit_logs",
+      what: "activity log entries", args: () => ({ p_days: parseInt($("clDays").value, 10) }),
+    },
+    codes: {
+      count: "clCodesCount", del: "clCodesDel", msg: "clCodesMsg", action: "codes",
+      what: "used or expired codes", args: () => ({}),
+    },
+    results: {
+      count: "clResCount", del: "clResDel", msg: "clResMsg", action: "results",
+      what: "result rows",
+      args: () => ({ p_year: parseInt($("clYear").value, 10), p_semester: parseInt($("clSem").value, 10) }),
+    },
+  };
+
+  function cleanupCall(c, dry) {
+    return sb.rpc("admin_cleanup", Object.assign(
+      { p_action: c.action, p_days: null, p_year: null, p_semester: null }, c.args(), { p_dry_run: dry }
+    ));
+  }
+
+  Object.values(CLEAN).forEach((c) => {
+    $(c.count).addEventListener("click", async () => {
+      $(c.del).disabled = true; $(c.count).disabled = true;
+      const { data, error } = await cleanupCall(c, true);
+      $(c.count).disabled = false;
+      if (error) { show($(c.msg), "err", error.message); return; }
+      const n = Number(data && data.rows) || 0;
+      if (!n) { show($(c.msg), "ok", "Nothing to delete."); return; }
+      show($(c.msg), "", `${n.toLocaleString()} ${c.what} will be deleted. Tap Delete to continue.`);
+      $(c.del).disabled = false;
+    });
+
+    $(c.del).addEventListener("click", async () => {
+      const typed = prompt("This cannot be undone. Type DELETE to confirm.");
+      if ((typed || "").trim().toUpperCase() !== "DELETE") { show($(c.msg), "", "Cancelled. Nothing was deleted."); return; }
+      $(c.del).disabled = true; $(c.count).disabled = true;
+      const { data, error } = await cleanupCall(c, false);
+      $(c.count).disabled = false;
+      if (error) { show($(c.msg), "err", error.message); return; }
+      show($(c.msg), "ok", `Done. ${(Number(data && data.rows) || 0).toLocaleString()} ${c.what} deleted.`);
+      loadStats();
+    });
+  });
+
+  ["clDays", "clYear", "clSem"].forEach((id) => $(id).addEventListener("input", () => {
+    Object.values(CLEAN).forEach((c) => ($(c.del).disabled = true));
+  }));
 </script>
 </body>
 </html>
