@@ -259,7 +259,7 @@ if (!token) { showError(" Please complete the verification."); return; }
       const res = await fetch(FUNCTION_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json", "apikey": SUPABASE_KEY },
-        body: JSON.stringify({ index, code, dob }),
+        body: JSON.stringify({ index, code, dob,token }),
       });
       let data = null;
       try { data = await res.json(); } catch (_) {}
