@@ -251,6 +251,8 @@
     const index = $("index").value.trim().toUpperCase();
     const code = $("code").value.trim();
     const dob = $("dob").value;
+    const token = document.querySelector('[name="cf-turnstile-response"]')?.value || "";
+if (!token) { showError(" Please complete the verification."); return; }
     if (!index || !code || !dob) { showError(" Enter your index number, checker code and date of birth."); return; }
     submitBtn.disabled = true; submitBtn.textContent = "Checking...";
     try {
