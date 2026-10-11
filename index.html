@@ -118,6 +118,12 @@
     .wm-inner { color:#000; opacity:.09; }
     .stamp { color:#000; border-color:#000; }
   }
+select, textarea { width:100%; font:inherit; padding:12px; border:1.5px solid var(--line);
+  border-radius:8px; background:var(--paper); color:var(--ink); }
+textarea { resize:vertical; }
+.error.ok { border-left-color:var(--good); background:color-mix(in srgb, var(--good) 10%, var(--card)); }
+.help-wrap { margin-top:14px; }
+@media print { .help-wrap { display:none; } }
 </style>
 </head>
 <body>
@@ -205,7 +211,37 @@
       <p class="note">This page is not an official certificate. Report any error to the school office.</p>
     </section>
   </main>
-
+<div class="help-wrap">
+  <p class="trust"><button type="button" class="btn-line" id="helpBtn">Need help? Send us a message</button></p>
+  <section id="helpView" class="panel" hidden aria-labelledby="helpTitle">
+    <h1 id="helpTitle" style="font-size:1.25rem">Send a message to the school</h1>
+    <p class="lead">Tell us what is wrong and we will help. Do not write your checker code here.</p>
+    <form id="helpForm" novalidate autocomplete="off">
+      <label for="hName">Your name</label>
+      <input id="hName" type="text" maxlength="100">
+      <label for="hIndex">Index number (if you know it)</label>
+      <input id="hIndex" type="text" maxlength="30" autocapitalize="characters">
+      <label for="hContact">Phone number (so we can reach you)</label>
+      <input id="hContact" type="tel" maxlength="40">
+      <label for="hCat">What is the problem?</label>
+      <select id="hCat">
+        <option value="code_problem">My checker code does not work</option>
+        <option value="wrong_result">My result looks wrong</option>
+        <option value="missing_result">My result is missing</option>
+        <option value="other">Something else</option>
+      </select>
+      <label for="hMsg">Your message</label>
+      <textarea id="hMsg" rows="5" maxlength="1000"></textarea>
+      <p class="hint"><span id="hCount">0</span>/1000</p>
+      <input id="hWebsite" type="text" tabindex="-1" autocomplete="off" aria-hidden="true"
+             style="position:absolute;left:-9999px;opacity:0;height:0">
+      <div id="hTurnstile" style="margin-top:16px"></div>
+      <div id="hStatus" class="error" role="alert" hidden></div>
+      <button id="hSend" class="btn-main" type="submit">Send message</button>
+      <button type="button" class="btn-line" id="hClose" style="width:100%;margin-top:10px">Close</button>
+    </form>
+  </section>
+</div>
   <footer class="contact" id="contact" hidden></footer>
 </div>
 
@@ -346,6 +382,73 @@ if (!token) { showError(" Please complete the verification."); return; }
   $("againBtn").addEventListener("click", () => {
     form.reset(); $("resultView").hidden = true; $("formView").hidden = false; $("trustNote").hidden = false;
   });
+  /* ---- Help form ---- */
+(function () {
+  const SEND_URL = SUPABASE_URL + "/functions/v1/send-help";
+  const SITEKEY = "0x4AAAAAAFSJkb8M2JC26qsJ";
+  let widgetId = null, helpToken = "";
+  const hv = $("helpView"), hf = $("helpForm"), hs = $("hStatus"), hb = $("hSend");
+
+  function status(msg, ok) {
+    hs.textContent = msg;
+    hs.classList.toggle("ok", !!ok);
+    hs.hidden = false;
+  }
+  function renderWidget() {
+    if (!window.turnstile) { status("Verification is still loading. Please try again in a moment."); return; }
+    if (widgetId === null) {
+      widgetId = turnstile.render("#hTurnstile", {
+        sitekey: SITEKEY,
+        callback: (t) => { helpToken = t; },
+        "expired-callback": () => { helpToken = ""; },
+        "error-callback": () => { helpToken = ""; },
+      });
+    } else { turnstile.reset(widgetId); helpToken = ""; }
+  }
+  $("helpBtn").addEventListener("click", () => {
+    hv.hidden = false; hs.hidden = true;
+    renderWidget();
+    hv.scrollIntoView({ behavior: "smooth" });
+  });
+  $("hClose").addEventListener("click", () => { hv.hidden = true; });
+  $("hMsg").addEventListener("input", (e) => { $("hCount").textContent = e.target.value.length; });
+
+  hf.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    hs.hidden = true;
+    const message = $("hMsg").value.trim();
+    if (message.length < 5) { status("Please write a little more."); return; }
+    if (!helpToken) { status("Please complete the verification."); return; }
+    hb.disabled = true; hb.textContent = "Sending...";
+    try {
+      const res = await fetch(SEND_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "apikey": SUPABASE_KEY },
+        body: JSON.stringify({
+          name: $("hName").value,
+          index_number: $("hIndex").value.trim().toUpperCase(),
+          contact: $("hContact").value,
+          category: $("hCat").value,
+          message: message,
+          website: $("hWebsite").value,
+          token: helpToken,
+        }),
+      });
+      let data = null; try { data = await res.json(); } catch (_) {}
+      if (!res.ok || !data || !data.ok) {
+        status((data && data.error) || "Could not send. Please try again.");
+      } else {
+        hf.reset(); $("hCount").textContent = "0";
+        status("Thank you. Your message was sent. The school will contact you.", true);
+      }
+    } catch (_) {
+      status("Network problem. Check your internet and try again.");
+    } finally {
+      hb.disabled = false; hb.textContent = "Send message";
+      if (window.turnstile && widgetId !== null) { turnstile.reset(widgetId); helpToken = ""; }
+    }
+  });
+})();
 </script>
 </body>
 </html>
