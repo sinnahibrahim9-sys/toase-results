@@ -293,6 +293,8 @@
 
   /* ---------- Tabs ---------- */
   const TABS = ["over", "up", "stu", "codes", "school", "clean"];
+  TABS.push("help");
+document.querySelector('[data-tab="help"]').addEventListener("click", () => { if (typeof loadHelp === "function") loadHelp(); });
   document.querySelectorAll(".tabs button").forEach((b) => b.addEventListener("click", () => {
     document.querySelectorAll(".tabs button").forEach((x) => x.setAttribute("aria-selected", x === b ? "true" : "false"));
     TABS.forEach((t) => ($("pane-" + t).hidden = t !== b.dataset.tab));
