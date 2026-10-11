@@ -591,6 +591,45 @@ document.querySelector('[data-tab="help"]').addEventListener("click", () => { if
   ["clDays", "clYear", "clSem"].forEach((id) => $(id).addEventListener("input", () => {
     Object.values(CLEAN).forEach((c) => ($(c.del).disabled = true));
   }));
+  /* ---------- Help messages ---------- */
+  const HELP_CAT = { code_problem: "Code problem", wrong_result: "Wrong result", missing_result: "Missing result", other: "Other" };
+
+  async function loadHelp() {
+    const box = $("hMsgs"); box.textContent = ""; $("hInfo").hidden = true;
+    const f = $("hFilter").value;
+    const { data, error } = await sb.rpc("admin_list_support_messages", { p_status: f || null });
+    if (error) { show($("hInfo"), "err", error.message); return; }
+    if (!data || !data.length) { show($("hInfo"), "", "No messages here."); return; }
+    data.forEach((m) => {
+      const card = document.createElement("div"); card.className = "subj";
+      const head = document.createElement("b");
+      head.textContent = (HELP_CAT[m.category] || "Other") + " · " + String(m.status).toUpperCase();
+      const meta = document.createElement("div"); meta.className = "muted";
+      meta.textContent = new Date(m.created_at).toLocaleString("en-GB");
+      const who = document.createElement("div"); who.className = "muted";
+      who.textContent = "From: " + (m.student_name || "No name") +
+        (m.index_number ? " · Index: " + m.index_number : "") +
+        (m.contact ? " · Phone: " + m.contact : "");
+      const text = document.createElement("p"); text.style.whiteSpace = "pre-wrap"; text.style.margin = "8px 0";
+      text.textContent = m.message;
+      const row = document.createElement("div"); row.className = "row";
+      ["new", "read", "resolved"].filter((s) => s !== m.status).forEach((s) => {
+        const b = document.createElement("button"); b.type = "button"; b.className = "btn-line";
+        b.textContent = "Mark " + s;
+        b.addEventListener("click", async () => {
+          b.disabled = true;
+          const { error: e2 } = await sb.rpc("admin_update_support_message", { p_id: m.id, p_status: s, p_note: null });
+          if (e2) { show($("hInfo"), "err", e2.message); b.disabled = false; return; }
+          loadHelp();
+        });
+        row.append(b);
+      });
+      card.append(head, meta, who, text, row);
+      box.append(card);
+    });
+  }
+  $("hFilter").addEventListener("change", loadHelp);
+  $("hRefresh").addEventListener("click", loadHelp);
 </script>
 </body>
 </html>
