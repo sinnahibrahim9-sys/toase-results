@@ -116,6 +116,25 @@
     </div>
 
     <!-- Upload -->
+    <!-- Help messages -->
+    <div id="pane-help" class="panel" hidden>
+      <h2>Help messages</h2>
+      <p class="muted">Messages students send from the results page.</p>
+      <div class="row" style="align-items:end">
+        <div>
+          <label for="hFilter">Show</label>
+          <select id="hFilter">
+            <option value="new">New</option>
+            <option value="read">Read</option>
+            <option value="resolved">Resolved</option>
+            <option value="">All</option>
+          </select>
+        </div>
+        <button class="btn-line" id="hRefresh" type="button" style="flex:0 0 auto">Refresh</button>
+      </div>
+      <div id="hInfo" class="msg" hidden></div>
+      <div id="hMsgs"></div>
+    </div>
     <div id="pane-up" class="panel" hidden>
       <h2>Upload results</h2>
       <p class="muted">CSV file, one row per student per subject. Students with the same index number and year are updated, not duplicated.</p>
