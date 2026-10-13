@@ -7,6 +7,7 @@
 <meta name="description" content="Check your examination results online with your index number and results checker code.">
 <link rel="icon" href="logo.jpg">
   <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,700&family=Public+Sans:wght@400;500;600&display=swap" rel="stylesheet">
@@ -104,6 +105,16 @@
   .stamp .s3 { font-size:.54rem; font-weight:500; }
   .printed { margin:10px 0 0; font-size:.78rem; color:var(--muted); }
 
+  /* ---- QR verification block ---- */
+  .verify-row { display:flex; align-items:center; gap:12px; margin:12px 0 0; padding-top:12px;
+    border-top:1px solid var(--line); }
+  .qr { flex:none; background:#fff; padding:6px; border-radius:6px; line-height:0;
+    -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  .qr img { display:block; width:88px; height:88px; }
+  .verify-text { margin:0; font-size:.8rem; color:var(--muted); line-height:1.4; }
+  .verify-text b { display:block; color:var(--ink); font-family:ui-monospace, Menlo, Consolas, monospace;
+    font-size:.84rem; letter-spacing:.04em; margin-top:2px; overflow-wrap:anywhere; }
+
   .slip-actions { display:flex; gap:10px; margin:14px 0 10px; }
   .slip-actions button { flex:1; }
   .slip-actions .btn-main { margin-top:0; width:auto; }
@@ -117,6 +128,7 @@
     .g-good,.g-fair,.g-weak,.g-fail { color:#000; }
     .wm-inner { color:#000; opacity:.09; }
     .stamp { color:#000; border-color:#000; }
+    .verify-text, .verify-text b { color:#000; }
   }
 select, textarea { width:100%; font:inherit; padding:12px; border:1.5px solid var(--line);
   border-radius:8px; background:var(--paper); color:var(--ink); }
@@ -201,6 +213,12 @@ textarea { resize:vertical; }
             <div class="s3" id="stampDate"></div>
           </div>
         </div>
+
+        <div class="verify-row" id="verifyRow" hidden>
+          <div class="qr" id="qrBox"></div>
+          <p class="verify-text">Scan to verify this slip, or enter the reference number on the verify page.<b id="rRef"></b></p>
+        </div>
+
         <p class="printed">Printed on: <span id="printedOn"></span></p>
 
         <div class="slip-actions">
@@ -319,6 +337,23 @@ textarea { resize:vertical; }
   }
   window.addEventListener("beforeprint", stampPrinted);
 
+  /* ---- Reference number + QR code that opens the verify page ---- */
+  function showQR(ref) {
+    const row = $("verifyRow"), box = $("qrBox");
+    box.textContent = "";
+    if (!ref || typeof QRCode === "undefined") { row.hidden = true; return; }
+    $("rRef").textContent = ref;
+    const link = new URL("verify.html?ref=" + encodeURIComponent(ref), location.href).href;
+    try {
+      new QRCode(box, {
+        text: link, width: 88, height: 88,
+        colorDark: "#000000", colorLight: "#ffffff",
+        correctLevel: QRCode.CorrectLevel.M,
+      });
+      row.hidden = false;
+    } catch (e) { row.hidden = true; }
+  }
+
   function showSlip(d, index) {
     const st = d.student || d;
     $("rName").textContent = pick(st, ["full_name", "name", "student_name"]);
@@ -343,6 +378,7 @@ textarea { resize:vertical; }
     const head = pick(d, ["headmaster"]) || pick(school, ["headmaster", "headmaster_name", "head_name"]);
     $("rHead").textContent = head; $("rSign").hidden = !head;
 
+    showQR(d.ref);
     stampPrinted();
     $("formView").hidden = true; $("trustNote").hidden = true; $("resultView").hidden = false;
     window.scrollTo(0, 0);
