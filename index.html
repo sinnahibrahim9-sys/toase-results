@@ -154,7 +154,7 @@ textarea { resize:vertical; }
       <h1 id="formTitle">Check your results</h1>
       <p class="lead">Enter the details exactly as they appear on your index slip and results checker card.</p>
       <ol class="steps">
-        <li>Choose the semester you want to check.</li>
+        <li>Choose the semester you want to check (1, 2 or 3).</li>
         <li>Type your index number.</li>
         <li>Type the 12-character checker code from your card.</li>
         <li>Choose your date of birth.</li>
@@ -166,6 +166,7 @@ textarea { resize:vertical; }
           <option value="">Choose semester</option>
           <option value="1">Semester 1</option>
           <option value="2">Semester 2</option>
+          <option value="3">Semester 3</option>
         </select>
         <p class="hint">A checker card works for one semester only. After its first use it stays on that semester.</p>
         <label for="index">Index number</label>
@@ -421,7 +422,7 @@ textarea { resize:vertical; }
     const code = $("code").value.trim();
     const dob = $("dob").value;
     const token = document.querySelector('[name="cf-turnstile-response"]')?.value || "";
-    if (semester !== 1 && semester !== 2) { showError(" Please choose Semester 1 or Semester 2."); return; }
+    if (![1, 2, 3].includes(semester)) { showError(" Please choose your semester."); return; }
     if (!token) { showError(" Please complete the verification."); return; }
     if (!index || !code || !dob) { showError(" Enter your index number, checker code and date of birth."); return; }
     submitBtn.disabled = true; submitBtn.textContent = "Checking...";
