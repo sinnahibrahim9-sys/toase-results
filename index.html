@@ -48,7 +48,7 @@
   input { width:100%; font:inherit; padding:12px; border:1.5px solid var(--line); border-radius:8px;
     background:var(--paper); color:var(--ink); }
   input.code { font-family:ui-monospace, Menlo, Consolas, monospace; letter-spacing:.08em; text-transform:uppercase; }
-  input:focus-visible, button:focus-visible { outline:3px solid var(--focus); outline-offset:2px; }
+  input:focus-visible, button:focus-visible, select:focus-visible { outline:3px solid var(--focus); outline-offset:2px; }
   button { font:inherit; cursor:pointer; border:0; border-radius:8px; padding:13px 16px; font-weight:600; }
   .btn-main { width:100%; margin-top:20px; background:var(--brand); color:var(--on-brand); }
   .btn-main:disabled { opacity:.65; cursor:wait; }
@@ -154,12 +154,20 @@ textarea { resize:vertical; }
       <h1 id="formTitle">Check your results</h1>
       <p class="lead">Enter the details exactly as they appear on your index slip and results checker card.</p>
       <ol class="steps">
+        <li>Choose the semester you want to check.</li>
         <li>Type your index number.</li>
         <li>Type the 12-character checker code from your card.</li>
         <li>Choose your date of birth.</li>
         <li>Complete the verification, then press Check result.</li>
       </ol>
       <form id="checkForm" novalidate autocomplete="off">
+        <label for="semester">Semester</label>
+        <select id="semester" name="semester" required>
+          <option value="">Choose semester</option>
+          <option value="1">Semester 1</option>
+          <option value="2">Semester 2</option>
+        </select>
+        <p class="hint">A checker card works for one semester only. After its first use it stays on that semester.</p>
         <label for="index">Index number</label>
         <input id="index" name="index" type="text" autocapitalize="characters" required maxlength="30">
         <label for="code">Results checker code</label>
@@ -173,7 +181,7 @@ textarea { resize:vertical; }
       </form>
     </section>
 
-    <p class="trust" id="trustNote">Your checker code works with your own index number only. Never share it.</p>
+    <p class="trust" id="trustNote">Your checker code works with your own index number and one semester only. Never share it.</p>
 
     <section id="resultView" hidden aria-live="polite">
       <article class="slip" id="slip">
@@ -197,6 +205,8 @@ textarea { resize:vertical; }
         <dl class="meta">
           <dt>Index number</dt><dd id="rIndex"></dd>
           <dt>School</dt><dd id="rSchool"></dd>
+          <dt>Form</dt><dd id="rForm"></dd>
+          <dt>Semester</dt><dd id="rSem"></dd>
           <dt>Year</dt><dd id="rYear"></dd>
         </dl>
         <table>
@@ -226,6 +236,7 @@ textarea { resize:vertical; }
           <button type="button" class="btn-line" id="againBtn">Check another</button>
         </div>
       </article>
+      <p class="note" id="checksNote" hidden></p>
       <p class="note">This page is not an official certificate. Report any error to the school office.</p>
     </section>
   </main>
@@ -305,6 +316,13 @@ textarea { resize:vertical; }
     e.target.value = raw.match(/.{1,4}/g)?.join("-") ?? "";
   });
 
+  /* A Turnstile token can be used only once, so get a fresh one after every attempt */
+  function resetTurnstile() {
+    try {
+      if (window.turnstile) turnstile.reset(document.querySelector(".cf-turnstile"));
+    } catch (e) { /* ignore */ }
+  }
+
   function showError(msg) {
     errorBox.textContent = "";
     const s = document.createElement("strong"); s.textContent = "We could not show a result.";
@@ -360,9 +378,11 @@ textarea { resize:vertical; }
     $("rIndex").textContent = pick(st, ["index_number", "index"]) || index;
     $("rSchool").textContent = pick(d, ["school_name"]) || pick(school, ["school_name"]) || "Toase Snr High School";
     const examType = pick(d, ["exam_type"]) || pick(st, ["exam_type"]);
-    const year = pick(d, ["exam_year", "academic_year", "year"]) || pick(st, ["exam_year", "academic_year", "year"]);
+    const year = pick(d, ["academic_year", "exam_year", "year"]) || pick(st, ["exam_year", "academic_year", "year"]);
     $("rExam").textContent = examType;
     $("rYear").textContent = year;
+    $("rForm").textContent = d.form ? "Form " + d.form : "";
+    $("rSem").textContent = d.semester ? "Semester " + d.semester : "";
 
     const list = d.results || d.subjects || d.rows || st.results || [];
     const tbody = $("rRows"); tbody.textContent = "";
@@ -378,6 +398,15 @@ textarea { resize:vertical; }
     const head = pick(d, ["headmaster"]) || pick(school, ["headmaster", "headmaster_name", "head_name"]);
     $("rHead").textContent = head; $("rSign").hidden = !head;
 
+    /* How many checks are left on this card (shown on screen only, not printed) */
+    const cn = $("checksNote");
+    if (typeof d.checks_left === "number") {
+      cn.textContent = d.checks_left > 0
+        ? "This checker has " + d.checks_left + " check" + (d.checks_left === 1 ? "" : "s") + " left for Semester " + d.semester + "."
+        : "This was the last check on this checker. It has now reached its limit.";
+      cn.hidden = false;
+    } else { cn.hidden = true; }
+
     showQR(d.ref);
     stampPrinted();
     $("formView").hidden = true; $("trustNote").hidden = true; $("resultView").hidden = false;
@@ -387,18 +416,20 @@ textarea { resize:vertical; }
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     errorBox.hidden = true;
+    const semester = Number($("semester").value);
     const index = $("index").value.trim().toUpperCase();
     const code = $("code").value.trim();
     const dob = $("dob").value;
     const token = document.querySelector('[name="cf-turnstile-response"]')?.value || "";
-if (!token) { showError(" Please complete the verification."); return; }
+    if (semester !== 1 && semester !== 2) { showError(" Please choose Semester 1 or Semester 2."); return; }
+    if (!token) { showError(" Please complete the verification."); return; }
     if (!index || !code || !dob) { showError(" Enter your index number, checker code and date of birth."); return; }
     submitBtn.disabled = true; submitBtn.textContent = "Checking...";
     try {
       const res = await fetch(FUNCTION_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json", "apikey": SUPABASE_KEY },
-        body: JSON.stringify({ index, code, dob,token }),
+        body: JSON.stringify({ index, code, dob, token, semester }),
       });
       let data = null;
       try { data = await res.json(); } catch (_) {}
@@ -411,12 +442,14 @@ if (!token) { showError(" Please complete the verification."); return; }
       showError(" Network problem. Check your internet and try again.");
     } finally {
       submitBtn.disabled = false; submitBtn.textContent = "Check result";
+      resetTurnstile();
     }
   });
 
   $("printBtn").addEventListener("click", () => { stampPrinted(); window.print(); });
   $("againBtn").addEventListener("click", () => {
     form.reset(); $("resultView").hidden = true; $("formView").hidden = false; $("trustNote").hidden = false;
+    resetTurnstile();
   });
   /* ---- Help form ---- */
 (function () {
