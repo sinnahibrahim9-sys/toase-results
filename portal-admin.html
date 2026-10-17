@@ -138,7 +138,7 @@
     </div>
     <div id="pane-up" class="panel" hidden>
       <h2>Upload results</h2>
-      <p class="muted">CSV file, one row per student per subject. Students with the same index number and year are updated, not duplicated.</p>
+      <p class="muted">CSV file, one row per student per subject. Each row needs form, semester and academic_year. A student is kept once by index number, and the same subject in the same form, semester and year is updated, not duplicated.</p>
       <button class="btn btn-line" id="tplBtn" type="button">Download template</button>
       <label for="csvFile">Choose CSV file</label>
       <input id="csvFile" type="file" accept=".csv,text/csv">
@@ -319,11 +319,11 @@ document.querySelector('[data-tab="help"]').addEventListener("click", () => { if
   $("refreshBtn").addEventListener("click", loadStats);
 
   /* ---------- CSV upload ---------- */
-  const REQUIRED = ["index_number","full_name","date_of_birth","exam_type","exam_year","subject_code","subject_name","grade"];
+  const REQUIRED = ["index_number","full_name","date_of_birth","exam_type","exam_year","subject_code","subject_name","grade","form","semester","academic_year"];
   const TEMPLATE =
-    "index_number,full_name,date_of_birth,school_name,exam_type,exam_year,subject_code,subject_name,grade,score\n" +
-    "0140101001,Kofi Mensah,2008-05-14,Toase Snr High School,WASSCE,2026,ENG,English Language,B2,72\n" +
-    "0140101001,Kofi Mensah,2008-05-14,Toase Snr High School,WASSCE,2026,MAT,Core Mathematics,B3,68\n";
+    "index_number,full_name,date_of_birth,school_name,exam_type,exam_year,subject_code,subject_name,grade,score,form,semester,academic_year\n" +
+    "0140101001,Kofi Mensah,2008-05-14,Toase Snr High School,Semester 1 Exam,2026,ENG,English Language,B2,72,1,1,2026/2027\n" +
+    "0140101001,Kofi Mensah,2008-05-14,Toase Snr High School,Semester 1 Exam,2026,MAT,Core Mathematics,B3,68,1,1,2026/2027\n";
   function download(name, text) {
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([text], { type: "text/csv" })); a.download = name;
@@ -369,6 +369,7 @@ document.querySelector('[data-tab="help"]').addEventListener("click", () => { if
       const idx = g("index_number").toUpperCase(), name = g("full_name"), sc = g("subject_code").toUpperCase();
       const grade = g("grade").toUpperCase(), year = parseInt(g("exam_year"), 10);
       const dob = normDate(g("date_of_birth")), score = g("score");
+      const form = g("form").replace(/\D/g, ""), sem = g("semester").replace(/\D/g, ""), ay = g("academic_year");
       if (!/^[A-Z0-9\-\/]{4,30}$/.test(idx)) errors.push(`Row ${line}: bad index number`);
       if (!name) errors.push(`Row ${line}: name is empty`);
       if (!dob) errors.push(`Row ${line}: date of birth must look like 2008-05-14 or 14/05/2008`);
@@ -378,11 +379,15 @@ document.querySelector('[data-tab="help"]').addEventListener("click", () => { if
       if (!g("subject_name")) errors.push(`Row ${line}: subject_name is empty`);
       if (!/^[A-Z0-9]{1,5}$/.test(grade)) errors.push(`Row ${line}: grade is not valid`);
       if (score !== "" && !(Number(score) >= 0 && Number(score) <= 100)) errors.push(`Row ${line}: score must be 0 to 100`);
-      const key = idx + "|" + year + "|" + sc;
+      if (!/^[1-3]$/.test(form)) errors.push(`Row ${line}: form must be 1, 2 or 3`);
+      if (!/^[1-3]$/.test(sem)) errors.push(`Row ${line}: semester must be 1, 2 or 3`);
+      if (!/^\d{4}\/\d{4}$/.test(ay)) errors.push(`Row ${line}: academic_year must look like 2026/2027`);
+      const key = idx + "|" + form + "|" + sem + "|" + ay + "|" + sc;
       if (seen.has(key)) errors.push(`Row ${line}: ${idx} has ${sc} twice`);
-      seen.add(key); students.add(idx + "|" + year);
+      seen.add(key); students.add(idx);
       out.push({ index_number: idx, full_name: name, date_of_birth: dob, school_name: g("school_name"),
-        exam_type: g("exam_type"), exam_year: year, subject_code: sc, subject_name: g("subject_name"), grade, score });
+        exam_type: g("exam_type"), exam_year: year, subject_code: sc, subject_name: g("subject_name"), grade, score,
+        form, semester: sem, academic_year: ay });
     }
     const box = $("upMsg");
     if (errors.length) {
