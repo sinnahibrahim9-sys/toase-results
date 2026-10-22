@@ -68,6 +68,10 @@
   .subj .x { flex:0 0 auto; padding:10px 12px; color:var(--fail); background:transparent; border:1.5px solid var(--line); }
   .clean-card { border:1px solid var(--line); border-radius:8px; padding:12px; margin-top:12px; background:var(--paper); }
   .clean-card h2 { font-size:1.05rem; }
+  .schoolbar { border:1px solid var(--line); background:var(--card); border-radius:10px; padding:10px 12px; margin-bottom:12px; }
+  .schoolbar label { margin:0 0 4px; }
+  .schoolbar .row { align-items:end; }
+  .linkline { margin-top:8px; font-size:.82rem; color:var(--muted); overflow-wrap:anywhere; }
   [hidden] { display:none !important; }
 </style>
 </head>
@@ -97,6 +101,14 @@
         <div class="muted" id="who"></div>
       </div>
       <button class="btn-line" id="logoutBtn" type="button">Sign out</button>
+    </div>
+
+    <div class="schoolbar">
+      <div class="row">
+        <div><label for="schoolPick">School</label><select id="schoolPick"></select></div>
+        <button class="btn-line" id="addSchoolBtn" type="button" style="flex:0 0 auto">Add school</button>
+      </div>
+      <div class="linkline"><span id="schoolLink"></span> <button class="btn-line" id="copyLinkBtn" type="button" style="padding:4px 9px;font-size:.8rem">Copy link</button></div>
     </div>
 
     <div class="tabs" role="tablist">
@@ -138,6 +150,7 @@
     </div>
     <div id="pane-up" class="panel" hidden>
       <h2>Upload results</h2>
+      <p class="muted" id="upSchool" style="font-weight:600"></p>
       <p class="muted">CSV file, one row per student per subject. Each row needs form, semester and academic_year. A student is kept once by index number, and the same subject in the same form, semester and year is updated, not duplicated.</p>
       <button class="btn btn-line" id="tplBtn" type="button">Download template</button>
       <label for="csvFile">Choose CSV file</label>
@@ -170,6 +183,8 @@
           <div><label for="eYear">Exam year</label><input id="eYear" type="number" min="2000" max="2100"></div>
         </div>
         <h2 style="margin-top:18px">Subjects and grades</h2>
+        <label for="eTerm">Form, semester and year</label>
+        <select id="eTerm"></select>
         <div id="subjects"></div>
         <button class="btn btn-line" id="addSubj" type="button">Add a subject</button>
         <button class="btn" id="saveStu" type="button">Save changes</button>
@@ -243,9 +258,12 @@
 
       <div class="clean-card">
         <h2>Old results</h2>
-        <p class="muted">Deletes the subject scores for one year and one semester. Students stay in the system.</p>
+        <p class="muted">Deletes the subject scores for one academic year, form and semester of the school chosen above. Students stay in the system.</p>
         <div class="row">
-          <div><label for="clYear">Exam year</label><input id="clYear" type="number" min="2000" max="2100" value="2026"></div>
+          <div><label for="clYear">Academic year</label><input id="clYear" type="text" maxlength="9" value="2026/2027" placeholder="2026/2027"></div>
+          <div><label for="clForm">Form</label><select id="clForm"><option value="">All forms</option><option value="1">Form 1</option><option value="2">Form 2</option><option value="3">Form 3</option></select></div>
+        </div>
+        <div class="row">
           <div><label for="clSem">Semester</label>
             <select id="clSem"><option value="1">Semester 1</option><option value="2">Semester 2</option><option value="3">Semester 3</option></select>
           </div>
@@ -277,8 +295,53 @@
     }
     $("who").textContent = session.user.email;
     $("loginView").hidden = true; $("appView").hidden = false;
-    loadStats(); loadSchool();
+    await loadSchools();
   }
+
+  /* ---------- Schools (one portal, many schools) ---------- */
+  window.currentSchool = { id: 1, slug: "toase", name: "" };
+  let schoolList = [];
+  function studentLink() {
+    return new URL("./", location.href).href + "?school=" + window.currentSchool.slug;
+  }
+  function refreshSchoolUI() {
+    $("schoolLink").textContent = "Student link: " + studentLink();
+    if ($("upSchool")) $("upSchool").textContent = "Uploading for: " + (window.currentSchool.name || window.currentSchool.slug);
+    if ($("cardSchool")) $("cardSchool").textContent = "Cards for: " + (window.currentSchool.name || window.currentSchool.slug);
+  }
+  async function pickSchool(id) {
+    const sc = schoolList.find((x) => String(x.id) === String(id)) || schoolList[0];
+    if (!sc) return;
+    window.currentSchool = { id: sc.id, slug: sc.slug, name: sc.name };
+    $("schoolPick").value = String(sc.id);
+    pending = []; $("importBtn").disabled = true; $("csvFile").value = ""; $("upMsg").hidden = true;
+    $("editor").hidden = true; $("hits").textContent = ""; $("sMsg").hidden = true; editId = null;
+    refreshSchoolUI(); loadStats(); loadSchool();
+  }
+  async function loadSchools(selectId) {
+    const { data, error } = await sb.rpc("admin_list_schools");
+    if (error || !data || !data.length) { show($("loginMsg"), "err", "Could not load schools."); return; }
+    schoolList = data;
+    $("schoolPick").textContent = "";
+    data.forEach((x) => { const o = document.createElement("option"); o.value = x.id; o.textContent = x.name; $("schoolPick").append(o); });
+    pickSchool(selectId || window.currentSchool.id);
+  }
+  $("schoolPick").addEventListener("change", (e) => pickSchool(e.target.value));
+  $("copyLinkBtn").addEventListener("click", async () => {
+    try { await navigator.clipboard.writeText(studentLink()); $("copyLinkBtn").textContent = "Copied"; }
+    catch { $("copyLinkBtn").textContent = "Select the link and copy"; }
+    setTimeout(() => ($("copyLinkBtn").textContent = "Copy link"), 2000);
+  });
+  $("addSchoolBtn").addEventListener("click", async () => {
+    const slug = (prompt("Link name for the new school (letters, numbers or dashes, e.g. nyinahin):") || "").trim().toLowerCase();
+    if (!slug) return;
+    const name = (prompt("Full school name:") || "").trim();
+    if (!name) return;
+    const { data, error } = await sb.rpc("admin_add_school", { p_slug: slug, p_name: name });
+    if (error) { alert(error.message); return; }
+    await loadSchools(data.id);
+    alert("School added. Go to the School tab to add the motto and headmaster.");
+  });
   $("loginForm").addEventListener("submit", async (e) => {
     e.preventDefault(); $("loginMsg").hidden = true; $("loginBtn").disabled = true;
     const { data, error } = await sb.auth.signInWithPassword({ email: $("email").value.trim(), password: $("password").value });
@@ -305,7 +368,7 @@ document.querySelector('[data-tab="help"]').addEventListener("click", () => { if
   /* ---------- Home ---------- */
   async function loadStats() {
     const box = $("stats"); box.textContent = "";
-    const { data, error } = await sb.rpc("admin_stats");
+    const { data, error } = await sb.rpc("admin_stats", { p_school_id: window.currentSchool.id });
     if (error || !data) { box.textContent = "Could not load numbers."; return; }
     [["Students", data.students], ["Result rows", data.results], ["Codes made", data.codes_total],
      ["Codes used", data.codes_used], ["Checks today", data.checks_today], ["Failed today", data.failed_today]]
@@ -406,7 +469,7 @@ document.querySelector('[data-tab="help"]').addEventListener("click", () => { if
     const btn = $("importBtn"); btn.disabled = true; const CHUNK = 500; let done = 0;
     for (let i = 0; i < pending.length; i += CHUNK) {
       const part = pending.slice(i, i + CHUNK);
-      const { error } = await sb.rpc("admin_import_results", { p_rows: part });
+      const { error } = await sb.rpc("admin_import_results", { p_rows: part, p_school_id: window.currentSchool.id });
       if (error) { show($("upMsg"), "err", `Stopped after ${done} rows. ${error.message}`); btn.disabled = false; return; }
       done += part.length; show($("upMsg"), "", `Importing... ${done} of ${pending.length}`);
     }
@@ -420,7 +483,7 @@ document.querySelector('[data-tab="help"]').addEventListener("click", () => { if
   async function doSearch() {
     const q = $("q").value.trim(); $("hits").textContent = ""; $("sMsg").hidden = true; $("editor").hidden = true;
     if (q.length < 2) { show($("sMsg"), "err", "Type at least 2 letters or numbers."); return; }
-    const { data, error } = await sb.rpc("admin_search_students", { p_q: q });
+    const { data, error } = await sb.rpc("admin_search_students", { p_q: q, p_school_id: window.currentSchool.id });
     if (error) { show($("sMsg"), "err", error.message); return; }
     if (!data.length) { show($("sMsg"), "", "No student found."); return; }
     data.forEach((s) => {
@@ -451,6 +514,15 @@ document.querySelector('[data-tab="help"]').addEventListener("click", () => { if
   }
   $("addSubj").addEventListener("click", () => addSubjectRow());
 
+  function termValue() { try { return JSON.parse($("eTerm").value); } catch { return null; } }
+  async function loadTermResults() {
+    const t = termValue(); $("subjects").textContent = "";
+    if (!t) return;
+    const { data, error } = await sb.rpc("admin_get_student", { p_id: editId, p_form: String(t.form), p_semester: String(t.semester), p_academic_year: t.academic_year });
+    if (error || !data) { show($("sMsg"), "err", "Could not load these results."); return; }
+    (data.results || []).forEach(addSubjectRow);
+  }
+  $("eTerm").addEventListener("change", loadTermResults);
   async function openStudent(id) {
     const { data, error } = await sb.rpc("admin_get_student", { p_id: id });
     if (error || !data) { show($("sMsg"), "err", "Could not open this student."); return; }
@@ -458,9 +530,13 @@ document.querySelector('[data-tab="help"]').addEventListener("click", () => { if
     $("eName").value = s.full_name || ""; $("eIndex").value = s.index_number || "";
     $("eDob").value = s.date_of_birth || ""; $("eSchool").value = s.school_name || "";
     $("eType").value = s.exam_type || ""; $("eYear").value = s.exam_year || "";
-    $("subjects").textContent = "";
-    (data.results || []).forEach(addSubjectRow);
+    $("eTerm").textContent = "";
+    (data.terms || []).forEach((t) => {
+      const o = document.createElement("option"); o.value = JSON.stringify(t);
+      o.textContent = `Form ${t.form} · Semester ${t.semester} · ${t.academic_year}`; $("eTerm").append(o);
+    });
     $("sMsg").hidden = true; $("editor").hidden = false;
+    await loadTermResults();
     $("editor").scrollIntoView({ behavior: "smooth" });
   }
 
@@ -488,7 +564,10 @@ document.querySelector('[data-tab="help"]').addEventListener("click", () => { if
       results.push({ subject_code: code, subject_name: name, grade, score });
     }
     $("saveStu").disabled = true;
-    const { error } = await sb.rpc("admin_save_student", { p_id: editId, p_student: student, p_results: results });
+    const t = termValue();
+    const args = { p_id: editId, p_student: student, p_results: results };
+    if (t) { args.p_form = String(t.form); args.p_semester = String(t.semester); args.p_academic_year = t.academic_year; }
+    const { error } = await sb.rpc("admin_save_student", args);
     $("saveStu").disabled = false;
     if (error) { show($("sMsg"), "err", error.message.includes("duplicate") ? "Another student already has this index number for that year." : error.message); return; }
     show($("sMsg"), "ok", "Saved. The student will see the new results straight away.");
@@ -531,19 +610,19 @@ document.querySelector('[data-tab="help"]').addEventListener("click", () => { if
   const SCH = { school_name: "sName", motto: "sMotto", headmaster: "sHead", academic_year: "sAcad",
     term: "sTerm", phone: "sPhone", email: "sEmail", address: "sAddr" };
   async function loadSchool() {
-    const { data } = await sb.rpc("get_school_info");
+    const { data } = await sb.rpc("get_school_info", { p_school: window.currentSchool.slug });
     if (!data) return;
+    window.currentSchool.name = data.school_name || window.currentSchool.name; refreshSchoolUI();
     Object.entries(SCH).forEach(([k, id]) => ($(id).value = data[k] || ""));
-    if (data.school_name) $("hdrName").textContent = data.school_name;
   }
   $("saveSchool").addEventListener("click", async () => {
     const payload = {}; Object.entries(SCH).forEach(([k, id]) => (payload[k] = $(id).value.trim()));
     if (!payload.school_name) { show($("schMsg"), "err", "The school name cannot be empty."); return; }
     $("saveSchool").disabled = true;
-    const { error } = await sb.rpc("admin_save_settings", { p_settings: payload });
+    const { error } = await sb.rpc("admin_save_settings", { p_settings: payload, p_school_id: window.currentSchool.id });
     $("saveSchool").disabled = false;
     if (error) { show($("schMsg"), "err", error.message); return; }
-    $("hdrName").textContent = payload.school_name;
+    window.currentSchool.name = payload.school_name; refreshSchoolUI(); loadSchools(window.currentSchool.id);
     show($("schMsg"), "ok", "Saved. The students' page shows the new details.");
   });
 
@@ -560,13 +639,13 @@ document.querySelector('[data-tab="help"]').addEventListener("click", () => { if
     results: {
       count: "clResCount", del: "clResDel", msg: "clResMsg", action: "results",
       what: "result rows",
-      args: () => ({ p_year: parseInt($("clYear").value, 10), p_semester: parseInt($("clSem").value, 10) }),
+      args: () => ({ p_academic_year: $("clYear").value.trim(), p_form: $("clForm").value || null, p_semester: parseInt($("clSem").value, 10) }),
     },
   };
 
   function cleanupCall(c, dry) {
     return sb.rpc("admin_cleanup", Object.assign(
-      { p_action: c.action, p_days: null, p_year: null, p_semester: null }, c.args(), { p_dry_run: dry }
+      { p_action: c.action, p_days: null, p_year: null, p_semester: null, p_school_id: window.currentSchool.id }, c.args(), { p_dry_run: dry }
     ));
   }
 
@@ -594,7 +673,7 @@ document.querySelector('[data-tab="help"]').addEventListener("click", () => { if
     });
   });
 
-  ["clDays", "clYear", "clSem"].forEach((id) => $(id).addEventListener("input", () => {
+  ["clDays", "clYear", "clSem", "clForm"].forEach((id) => $(id).addEventListener("input", () => {
     Object.values(CLEAN).forEach((c) => ($(c.del).disabled = true));
   }));
   /* ---------- Help messages ---------- */

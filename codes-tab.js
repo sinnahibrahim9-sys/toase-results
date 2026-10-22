@@ -1,12 +1,14 @@
-/* Codes tab upgrade: form + academic year, PDF cards (15 per page, each in a rectangle).
-   Loaded after the admin page script, so it can use sb and show(). */
+/* Codes tab: form + academic year, PDF cards (15 per page, each in a rectangle), per school.
+   Loaded after the admin page script, so it can use sb, show() and window.currentSchool. */
 (function () {
   const pane = document.getElementById("pane-codes");
   if (!pane) return;
   const $ = (id) => document.getElementById(id);
+  const school = () => window.currentSchool || { id: 1, slug: "toase", name: "Toase Snr High School" };
 
   pane.innerHTML =
     '<h2>Checker cards</h2>' +
+    '<p class="muted" id="cardSchool" style="font-weight:600"></p>' +
     '<p class="muted">Cards are shown only once, right after you create them. The PDF downloads by itself. Keep it safe, because the PINs cannot be shown again.</p>' +
     '<div class="row">' +
       '<div><label for="cForm">Form</label><select id="cForm">' +
@@ -22,12 +24,18 @@
     '<button class="btn" id="genBtn" type="button">Generate cards (PDF)</button>' +
     '<button class="btn btn-line" id="pdfAgain" type="button" hidden>Download the PDF again</button>';
 
-  /* Use the academic year saved in the School tab, if it looks like 2026/2027 */
-  try {
-    sb.rpc("get_school_info").then(({ data }) => {
+  /* Show the chosen school, and use its academic year if it looks like 2026/2027 */
+  async function refreshForSchool() {
+    const sc = school();
+    $("cardSchool").textContent = "Cards for: " + (sc.name || sc.slug);
+    try {
+      const { data } = await sb.rpc("get_school_info", { p_school: sc.slug });
       if (data && /^\d{4}\/\d{4}$/.test(data.academic_year || "")) $("cAcad").value = data.academic_year;
-    });
-  } catch (e) { /* keep the default */ }
+    } catch (e) { /* keep what is there */ }
+  }
+  refreshForSchool();
+  const tabBtn = document.querySelector('[data-tab="codes"]');
+  if (tabBtn) tabBtn.addEventListener("click", refreshForSchool);
 
   function loadJsPdf() {
     if (window.jspdf) return Promise.resolve();
@@ -41,12 +49,14 @@
   }
 
   /* A4, 3 columns x 5 rows = 15 cards per page */
-  function makePdf(cards, form, acad, uses) {
+  function makePdf(info) {
+    const { cards, form, acad, uses, school: sc } = info;
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({ unit: "mm", format: "a4" });
     const W = 63, H = 55, COLS = 3, ROWS = 5, PER = COLS * ROWS;
     const X0 = (210 - COLS * W) / 2, Y0 = (297 - ROWS * H) / 2;
-    const site = new URL("./", location.href).href.replace(/^https?:\/\//, "");
+    const site = (new URL("./", location.href).href + "?school=" + sc.slug).replace(/^https?:\/\//, "");
+    const title = String(sc.name || sc.slug).toUpperCase();
 
     cards.forEach((c, i) => {
       if (i > 0 && i % PER === 0) doc.addPage();
@@ -56,8 +66,11 @@
 
       doc.setDrawColor(40); doc.setLineWidth(0.3); doc.rect(x, y, W, H);
 
-      doc.setTextColor(20); doc.setFont("helvetica", "bold"); doc.setFontSize(8.5);
-      doc.text("TOASE SNR HIGH SCHOOL", cx, y + 6, mid);
+      /* school name: shrink the text until it fits on one line */
+      doc.setTextColor(20); doc.setFont("helvetica", "bold");
+      let size = 8.5; doc.setFontSize(size);
+      while (size > 4.5 && doc.getTextWidth(title) > W - 6) { size -= 0.25; doc.setFontSize(size); }
+      doc.text(title, cx, y + 6, mid);
       doc.setFont("helvetica", "normal"); doc.setFontSize(6);
       doc.text("RESULTS CHECKER CARD", cx, y + 9.5, mid);
       doc.setLineWidth(0.15); doc.line(x + 4, y + 11.5, x + W - 4, y + 11.5);
@@ -75,11 +88,14 @@
       doc.setTextColor(20); doc.setFont("courier", "bold"); doc.setFontSize(13);
       doc.text(c.code, cx, y + 37, mid);
 
-      doc.setFont("helvetica", "normal"); doc.setFontSize(5.3);
-      doc.text("Go to: " + site, cx, y + 42.5, mid);
-      doc.text(doc.splitTextToSize("Choose your semester, then enter your index number, PIN and date of birth.", W - 8), cx, y + 45.3, mid);
+      /* web address (with the school link) and instructions */
+      doc.setFont("helvetica", "normal"); doc.setFontSize(5.1);
+      const goLines = doc.splitTextToSize("Go to: " + site, W - 6);
+      doc.text(goLines, cx, y + 42.2, mid);
+      const yy = y + 42.2 + goLines.length * 2.07 + 0.6;
+      doc.text("Choose semester; enter index number, PIN, date of birth.", cx, yy, mid);
       doc.setFont("helvetica", "bold");
-      doc.text("Valid for " + uses + " checks. One semester, one student.", cx, y + 51.5, mid);
+      doc.text("Valid for " + uses + " checks. One semester, one student.", cx, y + H - 2.8, mid);
     });
     return doc;
   }
@@ -87,10 +103,11 @@
   let last = null; // kept in memory only, so the PDF can be downloaded again before leaving the page
 
   function save(info) {
-    makePdf(info.cards, info.form, info.acad, info.uses).save(info.name);
+    makePdf(info).save(info.name);
   }
 
   $("genBtn").addEventListener("click", async () => {
+    const sc = { id: school().id, slug: school().slug, name: school().name };
     const form = $("cForm").value, acad = $("cAcad").value.trim();
     const count = parseInt($("cCount").value, 10), uses = parseInt($("cUses").value, 10);
     const batch = $("cBatch").value.trim() || null;
@@ -102,16 +119,17 @@
     try {
       await loadJsPdf(); // load the PDF tool first, so no cards are made if it fails
       const { data, error } = await sb.rpc("admin_generate_codes", {
-        p_count: count, p_form: form, p_academic_year: acad, p_batch: batch, p_max_checks: uses,
+        p_count: count, p_form: form, p_academic_year: acad, p_batch: batch,
+        p_max_checks: uses, p_school_id: sc.id,
       });
       if (error) throw new Error(error.message);
       const cards = data.map((r) => ({ serial: r.serial_number, code: r.code }));
-      const name = "checker-cards-form" + form + "-" + acad.replace("/", "-") + "-" +
+      const name = "checker-cards-" + sc.slug + "-form" + form + "-" + acad.replace("/", "-") + "-" +
         (batch || "batch").replace(/[^A-Za-z0-9_-]+/g, "_") + ".pdf";
-      last = { cards, form, acad, uses, name };
+      last = { cards, form, acad, uses, name, school: sc };
       $("pdfAgain").hidden = false;
       save(last);
-      show($("cMsg"), "ok", cards.length + " cards created on " + Math.ceil(cards.length / 15) +
+      show($("cMsg"), "ok", cards.length + " cards created for " + (sc.name || sc.slug) + " on " + Math.ceil(cards.length / 15) +
         " page(s). The PDF is downloading. Keep it safe: the PINs cannot be shown again.");
     } catch (e) {
       show($("cMsg"), "err", e.message || "Something went wrong.");
