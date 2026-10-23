@@ -22,6 +22,7 @@
       }
       if (u.indexOf("/functions/v1/swift-handler") > -1 && opts && typeof opts.body === "string") {
         var b = JSON.parse(opts.body); b.school = slug;
+        var fp = document.getElementById("formPick"); if (fp && fp.value) b.form = fp.value;
         opts = Object.assign({}, opts, { body: JSON.stringify(b) });
       }
     } catch (e) { /* fall back to the normal request */ }
@@ -50,6 +51,19 @@
       if (d.logo_url) setLogos(d.logo_url); else if (slug !== "toase") setLogos("");
     });
   }
+
+  /* a Form box (Form 1, 2 or 3) under the semester box */
+  ready(function () {
+    var sem = el("semester"); if (!sem || el("formPick")) return;
+    var hint = sem.nextElementSibling; // the grey hint under the semester box
+    var wrap = document.createElement("div");
+    wrap.innerHTML = '<label for="formPick">Form</label>' +
+      '<select id="formPick"><option value="">Choose form</option>' +
+      '<option value="1">Form 1</option><option value="2">Form 2</option><option value="3">Form 3</option></select>' +
+      '<p class="hint">Choose the form whose results you want to see.</p>';
+    var anchor = hint && hint.classList.contains("hint") ? hint : sem;
+    anchor.insertAdjacentElement("afterend", wrap);
+  });
 
   /* other schools should not flash the Toase name while loading */
   ready(function () {
