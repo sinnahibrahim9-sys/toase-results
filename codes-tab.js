@@ -11,11 +11,6 @@
     '<p class="muted" id="cardSchool" style="font-weight:600"></p>' +
     '<p class="muted">Cards are shown only once, right after you create them. The PDF downloads by itself. Keep it safe, because the PINs cannot be shown again.</p>' +
     '<div class="row">' +
-      '<div><label for="cForm">Form</label><select id="cForm">' +
-        '<option value="1">Form 1</option><option value="2">Form 2</option><option value="3">Form 3</option></select></div>' +
-      '<div><label for="cAcad">Academic year</label><input id="cAcad" type="text" value="2026/2027" maxlength="9" placeholder="2026/2027"></div>' +
-    '</div>' +
-    '<div class="row">' +
       '<div><label for="cCount">How many</label><input id="cCount" type="number" min="1" max="5000" value="15"></div>' +
       '<div><label for="cUses">Checks per card</label><input id="cUses" type="number" min="1" max="20" value="3"></div>' +
     '</div>' +
@@ -24,14 +19,10 @@
     '<button class="btn" id="genBtn" type="button">Generate cards (PDF)</button>' +
     '<button class="btn btn-line" id="pdfAgain" type="button" hidden>Download the PDF again</button>';
 
-  /* Show the chosen school, and use its academic year if it looks like 2026/2027 */
-  async function refreshForSchool() {
+  /* Show the chosen school */
+  function refreshForSchool() {
     const sc = school();
     $("cardSchool").textContent = "Cards for: " + (sc.name || sc.slug);
-    try {
-      const { data } = await sb.rpc("get_school_info", { p_school: sc.slug });
-      if (data && /^\d{4}\/\d{4}$/.test(data.academic_year || "")) $("cAcad").value = data.academic_year;
-    } catch (e) { /* keep what is there */ }
   }
   refreshForSchool();
   const tabBtn = document.querySelector('[data-tab="codes"]');
@@ -50,7 +41,7 @@
 
   /* A4, 3 columns x 5 rows = 15 cards per page */
   function makePdf(info) {
-    const { cards, form, acad, uses, school: sc } = info;
+    const { cards, uses, school: sc } = info;
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({ unit: "mm", format: "a4" });
     const W = 63, H = 55, COLS = 3, ROWS = 5, PER = COLS * ROWS;
@@ -76,7 +67,7 @@
       doc.setLineWidth(0.15); doc.line(x + 4, y + 11.5, x + W - 4, y + 11.5);
 
       doc.setFont("helvetica", "bold"); doc.setFontSize(8);
-      doc.text("Form " + form + "  |  " + acad, cx, y + 16, mid);
+      doc.text("Any form  |  one semester", cx, y + 16, mid);
 
       doc.setFont("helvetica", "normal"); doc.setFontSize(5.5); doc.setTextColor(90);
       doc.text("SERIAL NO.", cx, y + 21.5, mid);
@@ -108,10 +99,8 @@
 
   $("genBtn").addEventListener("click", async () => {
     const sc = { id: school().id, slug: school().slug, name: school().name };
-    const form = $("cForm").value, acad = $("cAcad").value.trim();
-    const count = parseInt($("cCount").value, 10), uses = parseInt($("cUses").value, 10);
+        const count = parseInt($("cCount").value, 10), uses = parseInt($("cUses").value, 10);
     const batch = $("cBatch").value.trim() || null;
-    if (!/^\d{4}\/\d{4}$/.test(acad)) { show($("cMsg"), "err", "Academic year must look like 2026/2027."); return; }
     if (!(count >= 1 && count <= 5000) || !(uses >= 1 && uses <= 20)) {
       show($("cMsg"), "err", "Check the numbers: 1 to 5000 cards, and 1 to 20 checks per card."); return;
     }
@@ -119,14 +108,13 @@
     try {
       await loadJsPdf(); // load the PDF tool first, so no cards are made if it fails
       const { data, error } = await sb.rpc("admin_generate_codes", {
-        p_count: count, p_form: form, p_academic_year: acad, p_batch: batch,
-        p_max_checks: uses, p_school_id: sc.id,
+        p_count: count, p_batch: batch, p_max_checks: uses, p_school_id: sc.id,
       });
       if (error) throw new Error(error.message);
       const cards = data.map((r) => ({ serial: r.serial_number, code: r.code }));
-      const name = "checker-cards-" + sc.slug + "-form" + form + "-" + acad.replace("/", "-") + "-" +
+      const name = "checker-cards-" + sc.slug + "-" +
         (batch || "batch").replace(/[^A-Za-z0-9_-]+/g, "_") + ".pdf";
-      last = { cards, form, acad, uses, name, school: sc };
+      last = { cards, uses, name, school: sc };
       $("pdfAgain").hidden = false;
       save(last);
       show($("cMsg"), "ok", cards.length + " cards created for " + (sc.name || sc.slug) + " on " + Math.ceil(cards.length / 15) +
