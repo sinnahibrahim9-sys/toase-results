@@ -80,8 +80,9 @@
 
   <!-- LOGIN -->
   <section id="loginView" class="panel" hidden>
+    <img id="loginLogo" src="" alt="" hidden style="width:64px;height:64px;border-radius:10px;object-fit:cover;margin-bottom:8px">
     <h1>Admin sign in</h1>
-    <p class="muted">Toase Snr High School results portal</p>
+    <p class="muted" id="loginSchool">Results portal</p>
     <form id="loginForm">
       <label for="email">Email</label>
       <input id="email" type="email" autocomplete="username" required>
@@ -284,6 +285,20 @@
 
   function show(el, cls, text) { el.className = "msg " + (cls || ""); el.textContent = text; el.hidden = false; }
 
+  /* ---------- Per-school sign-in address: portal-admin.html?school=nyinahin ---------- */
+  const URL_SLUG = (new URLSearchParams(location.search).get("school") || "").toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 30);
+  (async function brandLogin() {
+    const slug = URL_SLUG || "toase";
+    try {
+      const { data } = await sb.rpc("get_school_info", { p_school: slug });
+      if (!data) { $("loginSchool").textContent = "School not found"; return; }
+      $("loginSchool").textContent = (data.school_name || "") + " results portal";
+      const img = $("loginLogo");
+      if (data.logo_url) { img.src = data.logo_url; img.hidden = false; }
+      else if (slug === "toase") { img.src = "logo.jpg"; img.hidden = false; }
+    } catch (e) { /* keep the default text */ }
+  })();
+
   /* ---------- Sign in / out ---------- */
   async function enter(session) {
     const { data: isAdmin, error } = await sb.rpc("is_admin");
@@ -295,7 +310,22 @@
     }
     $("who").textContent = session.user.email;
     $("loginView").hidden = true; $("appView").hidden = false;
+    try { const { data: who } = await sb.rpc("admin_whoami"); window.adminInfo = who || { super: false }; }
+    catch (e) { window.adminInfo = { super: false }; }
     await loadSchools();
+    applyRole();
+    if (URL_SLUG && window.adminInfo && window.adminInfo.super) {
+      const m = schoolList.find((x) => x.slug === URL_SLUG); if (m) pickSchool(m.id);
+    }
+  }
+
+  /* A school login sees only its own school: no school list, no Add school, no Help tab, no log cleanup */
+  function applyRole() {
+    if (window.adminInfo && window.adminInfo.super) return;
+    $("addSchoolBtn").hidden = true;
+    if (schoolList.length <= 1) { const row = $("schoolPick").closest(".row"); if (row) row.hidden = true; }
+    const hb = document.querySelector('[data-tab="help"]'); if (hb) hb.hidden = true;
+    const lc = $("clLogsCount") && $("clLogsCount").closest(".clean-card"); if (lc) lc.hidden = true;
   }
 
   /* ---------- Schools (one portal, many schools) ---------- */
@@ -305,7 +335,8 @@
     return new URL("./", location.href).href + "?school=" + window.currentSchool.slug;
   }
   function refreshSchoolUI() {
-    $("schoolLink").textContent = "Student link: " + studentLink();
+    $("schoolLink").textContent = "Student link: " + studentLink() +
+      "  |  Admin link: " + new URL("portal-admin.html", location.href).href + "?school=" + window.currentSchool.slug;
     if ($("upSchool")) $("upSchool").textContent = "Uploading for: " + (window.currentSchool.name || window.currentSchool.slug);
     if ($("cardSchool")) $("cardSchool").textContent = "Cards for: " + (window.currentSchool.name || window.currentSchool.slug);
   }
@@ -372,7 +403,7 @@ document.querySelector('[data-tab="help"]').addEventListener("click", () => { if
     if (error || !data) { box.textContent = "Could not load numbers."; return; }
     [["Students", data.students], ["Result rows", data.results], ["Codes made", data.codes_total],
      ["Codes used", data.codes_used], ["Checks today", data.checks_today], ["Failed today", data.failed_today]]
-    .forEach(([label, val]) => {
+    .slice(0, (window.adminInfo && window.adminInfo.super) ? 6 : 4).forEach(([label, val]) => {
       const d = document.createElement("div"); d.className = "stat";
       const b = document.createElement("b"); b.textContent = Number(val ?? 0).toLocaleString();
       const s = document.createElement("span"); s.textContent = label;
@@ -613,6 +644,11 @@ document.querySelector('[data-tab="help"]').addEventListener("click", () => { if
     const { data } = await sb.rpc("get_school_info", { p_school: window.currentSchool.slug });
     if (!data) return;
     window.currentSchool.name = data.school_name || window.currentSchool.name; refreshSchoolUI();
+    if (!(window.adminInfo && window.adminInfo.super)) {
+      $("hdrName").textContent = data.school_name || "Results admin";
+      const logo = document.querySelector(".top img");
+      if (logo) { if (data.logo_url) { logo.src = data.logo_url; logo.hidden = false; } else if (window.currentSchool.slug !== "toase") { logo.hidden = true; } }
+    }
     Object.entries(SCH).forEach(([k, id]) => ($(id).value = data[k] || ""));
   }
   $("saveSchool").addEventListener("click", async () => {
