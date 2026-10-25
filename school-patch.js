@@ -49,14 +49,28 @@
     el("schoolSub").textContent = "Please check the link you were given";
     setLogos("");
   }
-  /* school colour: the page's blue becomes the school's own colour */
+  /* school colour: the whole page takes the school's colour (background, cards, buttons) */
+  var BRAND_KEYS = ["--brand","--brand-dark","--focus","--paper","--card","--line","--on-brand","--muted"];
   function applyBrand(c) {
     var r = document.documentElement.style;
-    if (!/^#[0-9a-fA-F]{6}$/.test(c || "")) { ["--brand","--brand-dark","--focus"].forEach(function (k) { r.removeProperty(k); }); return; }
+    BRAND_KEYS.forEach(function (k) { r.removeProperty(k); });
+    if (!/^#[0-9a-fA-F]{6}$/.test(c || "")) return;
     var dark = window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches;
-    r.setProperty("--brand", dark ? "color-mix(in srgb, " + c + " 65%, white)" : c);
-    r.setProperty("--brand-dark", dark ? "color-mix(in srgb, " + c + " 45%, white)" : "color-mix(in srgb, " + c + " 72%, black)");
-    r.setProperty("--focus", dark ? "color-mix(in srgb, " + c + " 65%, white)" : c);
+    var mix = function (a, pa, b) { return "color-mix(in srgb, " + a + " " + pa + "%, " + b + ")"; };
+    var v = dark ? {
+      "--paper": mix(c, 38, "#000000"), "--card": mix(c, 50, "#000000"), "--line": mix(c, 72, "#000000"),
+      "--brand": mix(c, 45, "#ffffff"), "--brand-dark": mix(c, 30, "#ffffff"), "--focus": mix(c, 45, "#ffffff"),
+      "--on-brand": "#04120a", "--muted": mix("#ffffff", 74, c)
+    } : {
+      "--paper": mix(c, 18, "#ffffff"), "--card": mix(c, 6, "#ffffff"), "--line": mix(c, 30, "#ffffff"),
+      "--brand": c, "--brand-dark": mix(c, 72, "#000000"), "--focus": c
+    };
+    Object.keys(v).forEach(function (k) { r.setProperty(k, v[k]); });
+    if (!document.getElementById("brandPrint")) {
+      var st = document.createElement("style"); st.id = "brandPrint";
+      st.textContent = "@media print{:root{--paper:#fff!important;--card:#fff!important;--ink:#000!important;--muted:#333!important;--line:#999!important;--brand:#000!important;--brand-dark:#000!important;}}";
+      document.head.appendChild(st);
+    }
   }
   function onSchool(d) {
     ready(function () {

@@ -285,14 +285,28 @@
 
   function show(el, cls, text) { el.className = "msg " + (cls || ""); el.textContent = text; el.hidden = false; }
 
-  /* school colour: the page's blue becomes the school's own colour */
+  /* school colour: the whole page takes the school's colour (background, cards, buttons) */
+  var BRAND_KEYS = ["--brand","--brand-dark","--focus","--paper","--card","--line","--on-brand","--muted"];
   function applyBrand(c) {
     var r = document.documentElement.style;
-    if (!/^#[0-9a-fA-F]{6}$/.test(c || "")) { ["--brand","--brand-dark","--focus"].forEach(function (k) { r.removeProperty(k); }); return; }
+    BRAND_KEYS.forEach(function (k) { r.removeProperty(k); });
+    if (!/^#[0-9a-fA-F]{6}$/.test(c || "")) return;
     var dark = window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches;
-    r.setProperty("--brand", dark ? "color-mix(in srgb, " + c + " 65%, white)" : c);
-    r.setProperty("--brand-dark", dark ? "color-mix(in srgb, " + c + " 45%, white)" : "color-mix(in srgb, " + c + " 72%, black)");
-    r.setProperty("--focus", dark ? "color-mix(in srgb, " + c + " 65%, white)" : c);
+    var mix = function (a, pa, b) { return "color-mix(in srgb, " + a + " " + pa + "%, " + b + ")"; };
+    var v = dark ? {
+      "--paper": mix(c, 38, "#000000"), "--card": mix(c, 50, "#000000"), "--line": mix(c, 72, "#000000"),
+      "--brand": mix(c, 45, "#ffffff"), "--brand-dark": mix(c, 30, "#ffffff"), "--focus": mix(c, 45, "#ffffff"),
+      "--on-brand": "#04120a", "--muted": mix("#ffffff", 74, c)
+    } : {
+      "--paper": mix(c, 18, "#ffffff"), "--card": mix(c, 6, "#ffffff"), "--line": mix(c, 30, "#ffffff"),
+      "--brand": c, "--brand-dark": mix(c, 72, "#000000"), "--focus": c
+    };
+    Object.keys(v).forEach(function (k) { r.setProperty(k, v[k]); });
+    if (!document.getElementById("brandPrint")) {
+      var st = document.createElement("style"); st.id = "brandPrint";
+      st.textContent = "@media print{:root{--paper:#fff!important;--card:#fff!important;--ink:#000!important;--muted:#333!important;--line:#999!important;--brand:#000!important;--brand-dark:#000!important;}}";
+      document.head.appendChild(st);
+    }
   }
 
   /* ---------- Per-school sign-in address: portal-admin.html?school=nyinahin ---------- */
@@ -330,6 +344,7 @@
       if (m) {
         window.lockedToSchool = true;
         await pickSchool(m.id);
+        applyHeader();
         /* a school's own address shows only that school; the owner can switch from the plain address */
         const row = $("schoolPick").closest(".row"); if (row) row.hidden = true;
         const sw = document.createElement("a"); sw.href = "portal-admin.html"; sw.textContent = "Switch school";
@@ -366,7 +381,20 @@
     $("schoolPick").value = String(sc.id);
     pending = []; $("importBtn").disabled = true; $("csvFile").value = ""; $("upMsg").hidden = true;
     $("editor").hidden = true; $("hits").textContent = ""; $("sMsg").hidden = true; editId = null;
-    refreshSchoolUI(); loadStats(); loadSchool();
+    refreshSchoolUI();
+    await Promise.all([loadStats(), loadSchool()]);
+  }
+  /* header: a school's own page (or login) shows the school's name and logo */
+  function applyHeader() {
+    if (!(window.lockedToSchool || !(window.adminInfo && window.adminInfo.super))) return;
+    const sc = window.currentSchool;
+    $("hdrName").textContent = sc.name || "Results admin";
+    const logo = document.querySelector(".top img");
+    if (logo) {
+      if (sc.logo) { logo.src = sc.logo; logo.hidden = false; }
+      else if (sc.slug !== "toase") { logo.hidden = true; }
+      else { logo.src = "logo.jpg"; logo.hidden = false; }
+    }
   }
   async function loadSchools(selectId) {
     const { data, error } = await sb.rpc("admin_list_schools");
@@ -664,11 +692,8 @@ document.querySelector('[data-tab="help"]').addEventListener("click", () => { if
     if (!data) return;
     window.currentSchool.name = data.school_name || window.currentSchool.name; refreshSchoolUI();
     applyBrand(data.brand_color);
-    if (!(window.adminInfo && window.adminInfo.super) || window.lockedToSchool) {
-      $("hdrName").textContent = data.school_name || "Results admin";
-      const logo = document.querySelector(".top img");
-      if (logo) { if (data.logo_url) { logo.src = data.logo_url; logo.hidden = false; } else if (window.currentSchool.slug !== "toase") { logo.hidden = true; } }
-    }
+    window.currentSchool.logo = data.logo_url || "";
+    applyHeader();
     Object.entries(SCH).forEach(([k, id]) => ($(id).value = data[k] || ""));
   }
   $("saveSchool").addEventListener("click", async () => {
