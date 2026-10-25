@@ -20,6 +20,10 @@
           return res;
         });
       }
+      if (u.indexOf("/functions/v1/send-help") > -1 && opts && typeof opts.body === "string") {
+        var hb = JSON.parse(opts.body); hb.school = slug;
+        opts = Object.assign({}, opts, { body: JSON.stringify(hb) });
+      }
       if (u.indexOf("/functions/v1/swift-handler") > -1 && opts && typeof opts.body === "string") {
         var b = JSON.parse(opts.body); b.school = slug;
         var fp = document.getElementById("formPick"); if (fp && fp.value) b.form = fp.value;

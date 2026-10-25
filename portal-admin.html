@@ -319,12 +319,11 @@
     }
   }
 
-  /* A school login sees only its own school: no school list, no Add school, no Help tab, no log cleanup */
+  /* A school login sees only its own school: no school list, no Add school, no log cleanup */
   function applyRole() {
     if (window.adminInfo && window.adminInfo.super) return;
     $("addSchoolBtn").hidden = true;
     if (schoolList.length <= 1) { const row = $("schoolPick").closest(".row"); if (row) row.hidden = true; }
-    const hb = document.querySelector('[data-tab="help"]'); if (hb) hb.hidden = true;
     const lc = $("clLogsCount") && $("clLogsCount").closest(".clean-card"); if (lc) lc.hidden = true;
   }
 
@@ -718,7 +717,7 @@ document.querySelector('[data-tab="help"]').addEventListener("click", () => { if
   async function loadHelp() {
     const box = $("hMsgs"); box.textContent = ""; $("hInfo").hidden = true;
     const f = $("hFilter").value;
-    const { data, error } = await sb.rpc("admin_list_support_messages", { p_status: f || null });
+    const { data, error } = await sb.rpc("admin_list_support_messages", { p_status: f || null, p_school_id: window.currentSchool.id });
     if (error) { show($("hInfo"), "err", error.message); return; }
     if (!data || !data.length) { show($("hInfo"), "", "No messages here."); return; }
     data.forEach((m) => {
