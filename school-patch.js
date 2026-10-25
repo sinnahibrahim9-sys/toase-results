@@ -49,9 +49,19 @@
     el("schoolSub").textContent = "Please check the link you were given";
     setLogos("");
   }
+  /* school colour: the page's blue becomes the school's own colour */
+  function applyBrand(c) {
+    var r = document.documentElement.style;
+    if (!/^#[0-9a-fA-F]{6}$/.test(c || "")) { ["--brand","--brand-dark","--focus"].forEach(function (k) { r.removeProperty(k); }); return; }
+    var dark = window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches;
+    r.setProperty("--brand", dark ? "color-mix(in srgb, " + c + " 65%, white)" : c);
+    r.setProperty("--brand-dark", dark ? "color-mix(in srgb, " + c + " 45%, white)" : "color-mix(in srgb, " + c + " 72%, black)");
+    r.setProperty("--focus", dark ? "color-mix(in srgb, " + c + " 65%, white)" : c);
+  }
   function onSchool(d) {
     ready(function () {
       if (!d) { notFound(); return; }
+      applyBrand(d.brand_color);
       if (d.logo_url) setLogos(d.logo_url); else if (slug !== "toase") setLogos("");
     });
   }

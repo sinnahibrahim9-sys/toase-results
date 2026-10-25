@@ -285,6 +285,16 @@
 
   function show(el, cls, text) { el.className = "msg " + (cls || ""); el.textContent = text; el.hidden = false; }
 
+  /* school colour: the page's blue becomes the school's own colour */
+  function applyBrand(c) {
+    var r = document.documentElement.style;
+    if (!/^#[0-9a-fA-F]{6}$/.test(c || "")) { ["--brand","--brand-dark","--focus"].forEach(function (k) { r.removeProperty(k); }); return; }
+    var dark = window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches;
+    r.setProperty("--brand", dark ? "color-mix(in srgb, " + c + " 65%, white)" : c);
+    r.setProperty("--brand-dark", dark ? "color-mix(in srgb, " + c + " 45%, white)" : "color-mix(in srgb, " + c + " 72%, black)");
+    r.setProperty("--focus", dark ? "color-mix(in srgb, " + c + " 65%, white)" : c);
+  }
+
   /* ---------- Per-school sign-in address: portal-admin.html?school=nyinahin ---------- */
   const URL_SLUG = (new URLSearchParams(location.search).get("school") || "").toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 30);
   (async function brandLogin() {
@@ -293,6 +303,7 @@
       const { data } = await sb.rpc("get_school_info", { p_school: slug });
       if (!data) { $("loginSchool").textContent = "School not found"; return; }
       $("loginSchool").textContent = (data.school_name || "") + " results portal";
+      applyBrand(data.brand_color);
       const img = $("loginLogo");
       if (data.logo_url) { img.src = data.logo_url; img.hidden = false; }
       else if (slug === "toase") { img.src = "logo.jpg"; img.hidden = false; }
@@ -652,6 +663,7 @@ document.querySelector('[data-tab="help"]').addEventListener("click", () => { if
     const { data } = await sb.rpc("get_school_info", { p_school: window.currentSchool.slug });
     if (!data) return;
     window.currentSchool.name = data.school_name || window.currentSchool.name; refreshSchoolUI();
+    applyBrand(data.brand_color);
     if (!(window.adminInfo && window.adminInfo.super) || window.lockedToSchool) {
       $("hdrName").textContent = data.school_name || "Results admin";
       const logo = document.querySelector(".top img");
