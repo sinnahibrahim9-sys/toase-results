@@ -315,7 +315,16 @@
     await loadSchools();
     applyRole();
     if (URL_SLUG && window.adminInfo && window.adminInfo.super) {
-      const m = schoolList.find((x) => x.slug === URL_SLUG); if (m) pickSchool(m.id);
+      const m = schoolList.find((x) => x.slug === URL_SLUG);
+      if (m) {
+        window.lockedToSchool = true;
+        await pickSchool(m.id);
+        /* a school's own address shows only that school; the owner can switch from the plain address */
+        const row = $("schoolPick").closest(".row"); if (row) row.hidden = true;
+        const sw = document.createElement("a"); sw.href = "portal-admin.html"; sw.textContent = "Switch school";
+        sw.style.cssText = "display:inline-block;margin-left:10px;font-size:.82rem";
+        $("copyLinkBtn").after(sw);
+      }
     }
   }
 
@@ -643,7 +652,7 @@ document.querySelector('[data-tab="help"]').addEventListener("click", () => { if
     const { data } = await sb.rpc("get_school_info", { p_school: window.currentSchool.slug });
     if (!data) return;
     window.currentSchool.name = data.school_name || window.currentSchool.name; refreshSchoolUI();
-    if (!(window.adminInfo && window.adminInfo.super)) {
+    if (!(window.adminInfo && window.adminInfo.super) || window.lockedToSchool) {
       $("hdrName").textContent = data.school_name || "Results admin";
       const logo = document.querySelector(".top img");
       if (logo) { if (data.logo_url) { logo.src = data.logo_url; logo.hidden = false; } else if (window.currentSchool.slug !== "toase") { logo.hidden = true; } }
