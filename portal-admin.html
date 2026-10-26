@@ -347,9 +347,6 @@
         applyHeader();
         /* a school's own address shows only that school; the owner can switch from the plain address */
         const row = $("schoolPick").closest(".row"); if (row) row.hidden = true;
-        const sw = document.createElement("a"); sw.href = "portal-admin.html"; sw.textContent = "Switch school";
-        sw.style.cssText = "display:inline-block;margin-left:10px;font-size:.82rem";
-        $("copyLinkBtn").after(sw);
       }
     }
   }
@@ -445,9 +442,10 @@ document.querySelector('[data-tab="help"]').addEventListener("click", () => { if
 
   /* ---------- Home ---------- */
   async function loadStats() {
-    const box = $("stats"); box.textContent = "";
+    const box = $("stats");
     const { data, error } = await sb.rpc("admin_stats", { p_school_id: window.currentSchool.id });
     if (error || !data) { box.textContent = "Could not load numbers."; return; }
+    box.textContent = "";
     [["Students", data.students], ["Result rows", data.results], ["Codes made", data.codes_total],
      ["Codes used", data.codes_used], ["Checks today", data.checks_today], ["Failed today", data.failed_today]]
     .slice(0, (window.adminInfo && window.adminInfo.super) ? 6 : 4).forEach(([label, val]) => {
