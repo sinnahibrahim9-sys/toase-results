@@ -93,6 +93,22 @@
     anchor.insertAdjacentElement("afterend", wrap);
   });
 
+  /* colour letter grades too (A, B, C...). The page only coloured grades with a number (A1, B2...) */
+  ready(function () {
+    var tb = el("rRows"); if (!tb) return;
+    function paint() {
+      tb.querySelectorAll("td.grade").forEach(function (td) {
+        if (/g-(good|fair|weak|fail)/.test(td.className)) return;
+        var g = td.textContent.trim().toUpperCase();
+        if (!/^[A-F][+-]?$/.test(g)) return;
+        var c = g.charAt(0);
+        td.classList.add(c === "A" || c === "B" ? "g-good" : c === "C" ? "g-fair" : c === "D" ? "g-weak" : "g-fail");
+      });
+    }
+    new MutationObserver(paint).observe(tb, { childList: true });
+    paint();
+  });
+
   /* other schools should not flash the Toase name while loading */
   ready(function () {
     if (slug === "toase") return;
