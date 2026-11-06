@@ -152,7 +152,7 @@
     <div id="pane-up" class="panel" hidden>
       <h2>Upload results</h2>
       <p class="muted" id="upSchool" style="font-weight:600"></p>
-      <p class="muted">CSV file, one row per student per subject. Each row needs form, semester and academic_year. A student is kept once by index number, and the same subject in the same form, semester and year is updated, not duplicated.</p>
+      <p class="muted">CSV file with <b>one row per student</b>. Each subject has two columns: the score and its grade (for example <i>ENG|English Language</i> and <i>ENG grade</i>). Each row also needs form, semester and academic_year. A student is kept once by index number, and the same subject in the same form, semester and year is updated, not duplicated. The older file with one row per subject still works.</p>
       <button class="btn btn-line" id="tplBtn" type="button">Download template</button>
       <label for="csvFile">Choose CSV file</label>
       <input id="csvFile" type="file" accept=".csv,text/csv">
@@ -460,9 +460,52 @@ document.querySelector('[data-tab="help"]').addEventListener("click", () => { if
   /* ---------- CSV upload ---------- */
   const REQUIRED = ["index_number","full_name","date_of_birth","exam_type","exam_year","subject_code","subject_name","grade","form","semester","academic_year"];
   const TEMPLATE =
-    "index_number,full_name,date_of_birth,school_name,exam_type,exam_year,subject_code,subject_name,grade,score,form,semester,academic_year\n" +
-    "0140101001,Kofi Mensah,2008-05-14,Toase Snr High School,Semester 1 Exam,2026,ENG,English Language,B2,72,1,1,2026/2027\n" +
-    "0140101001,Kofi Mensah,2008-05-14,Toase Snr High School,Semester 1 Exam,2026,MAT,Core Mathematics,B3,68,1,1,2026/2027\n";
+    "index_number,full_name,date_of_birth,school_name,exam_type,exam_year,form,semester,academic_year,ENG|English Language,ENG grade,MAT|Core Mathematics,MAT grade,SCI|Integrated Science,SCI grade\n" +
+    "0140101001,Kofi Mensah,2008-05-14,Your School Name,Semester 1 Exam,2026,1,1,2026/2027,72,B2,68,B3,75,B2\n" +
+    "0140101002,Ama Serwaa,2008-09-02,Your School Name,Semester 1 Exam,2026,1,1,2026/2027,81,A1,59,C6,66,C4\n";
+
+  /* One row per student: each subject has a score column and a grade column.
+     Header names: "ENG|English Language" (code|name) or just "English Language"; the grade column is the same name plus " grade". */
+  function wideToLong(rows) {
+    const raw = rows[0].map((h) => h.trim()), low = raw.map((h) => h.toLowerCase());
+    const FIXED = ["index_number","full_name","date_of_birth","school_name","exam_type","exam_year","form","semester","academic_year"];
+    const need = ["index_number","full_name","date_of_birth","exam_type","exam_year","form","semester","academic_year"].filter((c) => !low.includes(c));
+    if (need.length) return { error: "Missing columns: " + need.join(", ") };
+    const gsuf = /[ _]grade$/, subj = [], byKey = {}, codes = new Set();
+    for (let i = 0; i < raw.length; i++) {
+      const h = raw[i];
+      if (!h || FIXED.includes(low[i]) || gsuf.test(low[i])) continue;
+      let code = h, name = h;
+      if (h.includes("|")) { const parts = h.split("|"); code = parts[0].trim(); name = parts.slice(1).join("|").trim(); }
+      code = code.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 30);
+      if (!code || !name) return { error: "A subject column has no name: " + h };
+      if (codes.has(code)) return { error: "Two subject columns share the code " + code };
+      codes.add(code);
+      const sj = { name, code, col: i, gcol: -1 }; subj.push(sj);
+      [low[i], code.toLowerCase(), name.toLowerCase()].forEach((k) => (byKey[k] = sj));
+    }
+    low.forEach((h, i) => { if (gsuf.test(h)) { const sj = byKey[h.replace(gsuf, "").trim()]; if (sj) sj.gcol = i; } });
+    if (!subj.length) return { error: "No subject columns found. Add a score column and a grade column for each subject." };
+    const nog = subj.filter((x) => x.gcol < 0).map((x) => x.name);
+    if (nog.length) return { error: "Missing grade column for: " + nog.join(", ") + ". Name it like 'English Language grade'." };
+    const out = [["index_number","full_name","date_of_birth","school_name","exam_type","exam_year","subject_code","subject_name","grade","score","form","semester","academic_year"]];
+    const lines = [null], errors = [];
+    for (let i = 1; i < rows.length; i++) {
+      const r = rows[i], line = i + 1, c = (k) => { const j = low.indexOf(k); return j >= 0 ? (r[j] ?? "").trim() : ""; };
+      let any = false;
+      for (const sj of subj) {
+        const sc = (r[sj.col] ?? "").trim(), gr = (r[sj.gcol] ?? "").trim();
+        if (sc === "" && gr === "") continue;
+        if (sc === "" || gr === "") { errors.push(`Row ${line}: ${sj.name} needs both a score and a grade`); continue; }
+        any = true;
+        out.push([c("index_number"), c("full_name"), c("date_of_birth"), c("school_name"), c("exam_type"), c("exam_year"),
+          sj.code, sj.name, gr, sc, c("form"), c("semester"), c("academic_year")]);
+        lines.push(line);
+      }
+      if (!any && !errors.some((t) => t.startsWith(`Row ${line}:`))) errors.push(`Row ${line}: no subject scores`);
+    }
+    return { rows: out, lines, errors };
+  }
   function download(name, text) {
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([text], { type: "text/csv" })); a.download = name;
@@ -496,15 +539,21 @@ document.querySelector('[data-tab="help"]').addEventListener("click", () => { if
   $("csvFile").addEventListener("change", async (e) => {
     pending = []; $("importBtn").disabled = true;
     const f = e.target.files[0]; if (!f) { $("upMsg").hidden = true; return; }
-    const rows = parseCSV(await f.text());
+    let rows = parseCSV(await f.text());
     if (rows.length < 2) { show($("upMsg"), "err", "The file has no data rows."); return; }
+    let lineMap = null; const pre = [];
+    if (!rows[0].map((h) => h.trim().toLowerCase()).includes("subject_code")) {
+      const t = wideToLong(rows);
+      if (t.error) { show($("upMsg"), "err", t.error); return; }
+      rows = t.rows; lineMap = t.lines; pre.push(...t.errors);
+    }
     const head = rows[0].map((h) => h.trim().toLowerCase());
     const missing = REQUIRED.filter((c) => !head.includes(c));
     if (missing.length) { show($("upMsg"), "err", "Missing columns: " + missing.join(", ")); return; }
     const col = (n) => head.indexOf(n);
-    const errors = [], out = [], seen = new Set(), students = new Set();
+    const errors = [...pre], out = [], seen = new Set(), students = new Set();
     for (let i = 1; i < rows.length; i++) {
-      const r = rows[i], line = i + 1, g = (n) => (col(n) >= 0 ? (r[col(n)] ?? "").trim() : "");
+      const r = rows[i], line = lineMap ? lineMap[i] : i + 1, g = (n) => (col(n) >= 0 ? (r[col(n)] ?? "").trim() : "");
       const idx = g("index_number").toUpperCase(), name = g("full_name"), sc = g("subject_code").toUpperCase();
       const grade = g("grade").toUpperCase(), year = parseInt(g("exam_year"), 10);
       const dob = normDate(g("date_of_birth")), score = g("score");
