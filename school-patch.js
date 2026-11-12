@@ -96,13 +96,14 @@
   /* colour letter grades too (A, B, C...). The page only coloured grades with a number (A1, B2...) */
   ready(function () {
     var tb = el("rRows"); if (!tb) return;
+    var COL = { A1: "g-good", B2: "g-good", B3: "g-good", C4: "g-fair", C5: "g-fair", C6: "g-fair",
+                D7: "g-weak", E8: "g-weak", F9: "g-fail" };
     function paint() {
       tb.querySelectorAll("td.grade").forEach(function (td) {
-        if (/g-(good|fair|weak|fail)/.test(td.className)) return;
-        var g = td.textContent.trim().toUpperCase();
-        if (!/^[A-F][+-]?$/.test(g)) return;
-        var c = g.charAt(0);
-        td.classList.add(c === "A" || c === "B" ? "g-good" : c === "C" ? "g-fair" : c === "D" ? "g-weak" : "g-fail");
+        var g = td.textContent.trim().toUpperCase(), c = COL[g];
+        if (!c) return;
+        td.classList.remove("g-good", "g-fair", "g-weak", "g-fail");
+        td.classList.add(c);
       });
     }
     new MutationObserver(paint).observe(tb, { childList: true });
