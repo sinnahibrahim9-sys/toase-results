@@ -152,7 +152,7 @@
     <div id="pane-up" class="panel" hidden>
       <h2>Upload results</h2>
       <p class="muted" id="upSchool" style="font-weight:600"></p>
-      <p class="muted">CSV file with <b>one row per student</b>. Each subject has two columns: the score and its grade (for example <i>ENG|English Language</i> and <i>ENG grade</i>). Each row also needs form, semester and academic_year. A student is kept once by index number, and the same subject in the same form, semester and year is updated, not duplicated. The older file with one row per subject still works.</p>
+      <p class="muted">CSV file with <b>one row per student</b> and one score column for each subject (for example <i>ENG|English Language</i>). The portal works out the grade from the score: A1 75 and above, B2 70, B3 65, C4 60, C5 55, C6 50, D7 45, E8 40, F9 below 40. Each row also needs form, semester and academic_year. A student is kept once by index number, and the same subject in the same form, semester and year is updated, not duplicated.</p>
       <button class="btn btn-line" id="tplBtn" type="button">Download template</button>
       <label for="csvFile">Choose CSV file</label>
       <input id="csvFile" type="file" accept=".csv,text/csv">
@@ -459,13 +459,19 @@ document.querySelector('[data-tab="help"]').addEventListener("click", () => { if
 
   /* ---------- CSV upload ---------- */
   const REQUIRED = ["index_number","full_name","date_of_birth","exam_type","exam_year","subject_code","subject_name","grade","form","semester","academic_year"];
-  const TEMPLATE =
-    "index_number,full_name,date_of_birth,school_name,exam_type,exam_year,form,semester,academic_year,ENG|English Language,ENG grade,MAT|Core Mathematics,MAT grade,SCI|Integrated Science,SCI grade\n" +
-    "0140101001,Kofi Mensah,2008-05-14,Your School Name,Semester 1 Exam,2026,1,1,2026/2027,72,B2,68,B3,75,B2\n" +
-    "0140101002,Ama Serwaa,2008-09-02,Your School Name,Semester 1 Exam,2026,1,1,2026/2027,81,A1,59,C6,66,C4\n";
+  /* Grade scale (WASSCE style). The portal gives the grade from the score. */
+  const SCALE = [[75,"A1","Excellent"],[70,"B2","Very Good"],[65,"B3","Good"],[60,"C4","Credit"],[55,"C5","Credit"],
+    [50,"C6","Credit"],[45,"D7","Pass"],[40,"E8","Pass"],[0,"F9","Fail"]];
+  function gradeFor(score) { for (const b of SCALE) if (score >= b[0]) return b[1]; return "F9"; }
 
-  /* One row per student: each subject has a score column and a grade column.
-     Header names: "ENG|English Language" (code|name) or just "English Language"; the grade column is the same name plus " grade". */
+  const TEMPLATE =
+    "index_number,full_name,date_of_birth,school_name,exam_type,exam_year,form,semester,academic_year,ENG|English Language,MAT|Core Mathematics,SCI|Integrated Science\n" +
+    "0140101001,Kofi Mensah,2008-05-14,Your School Name,Semester 1 Exam,2026,1,1,2026/2027,72,68,75\n" +
+    "0140101002,Ama Serwaa,2008-09-02,Your School Name,Semester 1 Exam,2026,1,1,2026/2027,81,59,66\n";
+
+  /* One row per student: one score column for each subject. The grade is worked out from the score.
+     Header names: "ENG|English Language" (code|name) or just "English Language".
+     A grade column (same name plus " grade") is optional; if you add one, your grade is used instead. */
   function wideToLong(rows) {
     const raw = rows[0].map((h) => h.trim()), low = raw.map((h) => h.toLowerCase());
     const FIXED = ["index_number","full_name","date_of_birth","school_name","exam_type","exam_year","form","semester","academic_year"];
@@ -485,21 +491,20 @@ document.querySelector('[data-tab="help"]').addEventListener("click", () => { if
       [low[i], code.toLowerCase(), name.toLowerCase()].forEach((k) => (byKey[k] = sj));
     }
     low.forEach((h, i) => { if (gsuf.test(h)) { const sj = byKey[h.replace(gsuf, "").trim()]; if (sj) sj.gcol = i; } });
-    if (!subj.length) return { error: "No subject columns found. Add a score column and a grade column for each subject." };
-    const nog = subj.filter((x) => x.gcol < 0).map((x) => x.name);
-    if (nog.length) return { error: "Missing grade column for: " + nog.join(", ") + ". Name it like 'English Language grade'." };
+    if (!subj.length) return { error: "No subject columns found. Add one score column for each subject." };
     const out = [["index_number","full_name","date_of_birth","school_name","exam_type","exam_year","subject_code","subject_name","grade","score","form","semester","academic_year"]];
     const lines = [null], errors = [];
     for (let i = 1; i < rows.length; i++) {
       const r = rows[i], line = i + 1, c = (k) => { const j = low.indexOf(k); return j >= 0 ? (r[j] ?? "").trim() : ""; };
       let any = false;
       for (const sj of subj) {
-        const sc = (r[sj.col] ?? "").trim(), gr = (r[sj.gcol] ?? "").trim();
+        const sc = (r[sj.col] ?? "").trim(), gr = sj.gcol >= 0 ? (r[sj.gcol] ?? "").trim() : "";
         if (sc === "" && gr === "") continue;
-        if (sc === "" || gr === "") { errors.push(`Row ${line}: ${sj.name} needs both a score and a grade`); continue; }
+        if (sc === "") { errors.push(`Row ${line}: ${sj.name} has a grade but no score`); continue; }
+        if (!(Number(sc) >= 0 && Number(sc) <= 100)) { errors.push(`Row ${line}: ${sj.name} score must be 0 to 100`); continue; }
         any = true;
         out.push([c("index_number"), c("full_name"), c("date_of_birth"), c("school_name"), c("exam_type"), c("exam_year"),
-          sj.code, sj.name, gr, sc, c("form"), c("semester"), c("academic_year")]);
+          sj.code, sj.name, gr || gradeFor(Number(sc)), sc, c("form"), c("semester"), c("academic_year")]);
         lines.push(line);
       }
       if (!any && !errors.some((t) => t.startsWith(`Row ${line}:`))) errors.push(`Row ${line}: no subject scores`);
@@ -634,6 +639,10 @@ document.querySelector('[data-tab="help"]').addEventListener("click", () => { if
     box.querySelector(".f-code").value = s.subject_code || "";
     box.querySelector(".f-grade").value = s.grade || "";
     box.querySelector(".f-score").value = s.score ?? "";
+    box.querySelector(".f-score").addEventListener("input", (e) => {
+      const v = e.target.value.trim();
+      if (v !== "" && Number(v) >= 0 && Number(v) <= 100) box.querySelector(".f-grade").value = gradeFor(Number(v));
+    });
     box.querySelector(".x").addEventListener("click", () => box.remove());
     $("subjects").append(box);
   }

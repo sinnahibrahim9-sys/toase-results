@@ -109,6 +109,25 @@
     paint();
   });
 
+  /* a Remark column (Excellent, Very Good...) next to each grade */
+  ready(function () {
+    var tb = el("rRows"); if (!tb) return;
+    var REMARK = { A1: "Excellent", B2: "Very Good", B3: "Good", C4: "Credit", C5: "Credit", C6: "Credit", D7: "Pass", E8: "Pass", F9: "Fail" };
+    var table = tb.closest("table");
+    function fill() {
+      var hr = table && table.querySelector("thead tr");
+      if (hr && !hr.querySelector(".rk")) { var th = document.createElement("th"); th.className = "rk"; th.textContent = "Remark"; hr.appendChild(th); }
+      tb.querySelectorAll("tr").forEach(function (r) {
+        if (r.querySelector(".rk")) return;
+        var g = r.querySelector("td.grade"), td = document.createElement("td");
+        td.className = "rk"; td.style.fontSize = ".85rem"; td.style.color = "var(--muted)";
+        td.textContent = (g && REMARK[g.textContent.trim().toUpperCase()]) || "";
+        r.appendChild(td);
+      });
+    }
+    new MutationObserver(fill).observe(tb, { childList: true });
+  });
+
   /* other schools should not flash the Toase name while loading */
   ready(function () {
     if (slug === "toase") return;
