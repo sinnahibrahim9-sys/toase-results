@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /nyinahin/
+Allow: /bibiani/
+Disallow: /portal-admin.html
+Disallow: /toase/
+Disallow: /*admin
+
+Sitemap: https://sinnahibrahim9-sys.github.io/toase-results/sitemap.xml
