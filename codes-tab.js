@@ -107,11 +107,23 @@
     const btn = $("genBtn"); btn.disabled = true; $("pdfAgain").hidden = true; last = null;
     try {
       await loadJsPdf(); // load the PDF tool first, so no cards are made if it fails
-      const { data, error } = await sb.rpc("admin_generate_codes", {
-        p_count: count, p_batch: batch, p_max_checks: uses, p_school_id: sc.id,
-      });
-      if (error) throw new Error(error.message);
-      const cards = data.map((r) => ({ serial: r.serial_number, code: r.code }));
+      /* The server returns at most 1000 rows per request, so ask for 1000 at a time
+         and keep every card. Only a complete list is shown, so no PIN is lost. */
+      const CHUNK = 1000;
+      let got = [];
+      for (let done = 0; done < count; done += CHUNK) {
+        const n = Math.min(CHUNK, count - done);
+        show($("cMsg"), "", "Making cards... " + got.length + " of " + count);
+        const { data, error } = await sb.rpc("admin_generate_codes", {
+          p_count: n, p_batch: batch, p_max_checks: uses, p_school_id: sc.id,
+        });
+        if (error) throw new Error("Stopped after " + got.length + " cards. Do not use this batch, and tell the owner. " + error.message);
+        got = got.concat(data || []);
+      }
+      if (got.length !== count) {
+        throw new Error("Only " + got.length + " of " + count + " cards were returned. Do not use this batch, and tell the owner.");
+      }
+      const cards = got.map((r) => ({ serial: r.serial_number, code: r.code }));
       const name = "checker-cards-" + sc.slug + "-" +
         (batch || "batch").replace(/[^A-Za-z0-9_-]+/g, "_") + ".pdf";
       last = { cards, uses, name, school: sc };
