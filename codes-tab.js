@@ -39,7 +39,12 @@
     });
   }
 
-  /* A4, 3 columns x 5 rows = 15 cards per page */
+  /* A4, 3 columns x 5 rows = 15 cards per page. Coloured with the school's own colour. */
+  function hexToRgb(h) { const n = parseInt(String(h).slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
+  const shade = (c, f) => c.map((v) => Math.round(v * f));
+  const tint = (c, f) => c.map((v) => Math.round(v + (255 - v) * f));
+  const GOLD = [217, 165, 20];
+
   function makePdf(info) {
     const { cards, uses, school: sc } = info;
     const { jsPDF } = window.jspdf;
@@ -48,45 +53,61 @@
     const X0 = (210 - COLS * W) / 2, Y0 = (297 - ROWS * H) / 2;
     const site = (new URL("./", location.href).href + "?school=" + sc.slug).replace(/^https?:\/\//, "");
     const title = String(sc.name || sc.slug).toUpperCase();
+    const B = hexToRgb(info.brand || "#1d4f9f");
+    const BD = shade(B, 0.65), BT = tint(B, 0.9);
+    const mid = { align: "center" };
 
     cards.forEach((c, i) => {
       if (i > 0 && i % PER === 0) doc.addPage();
       const k = i % PER;
       const x = X0 + (k % COLS) * W, y = Y0 + Math.floor(k / COLS) * H, cx = x + W / 2;
-      const mid = { align: "center" };
 
-      doc.setDrawColor(40); doc.setLineWidth(0.3); doc.rect(x, y, W, H);
+      /* card background and border */
+      doc.setFillColor(...BT); doc.setDrawColor(...B); doc.setLineWidth(0.4);
+      doc.roundedRect(x + 0.6, y + 0.6, W - 1.2, H - 1.2, 2.5, 2.5, "FD");
 
-      /* school name: shrink the text until it fits on one line */
-      doc.setTextColor(20); doc.setFont("helvetica", "bold");
+      /* coloured header with the school name (shrinks to fit one line) */
+      doc.setFillColor(...B);
+      doc.roundedRect(x + 0.6, y + 0.6, W - 1.2, 12.4, 2.5, 2.5, "F");
+      doc.setTextColor(255, 255, 255); doc.setFont("helvetica", "bold");
       let size = 8.5; doc.setFontSize(size);
-      while (size > 4.5 && doc.getTextWidth(title) > W - 6) { size -= 0.25; doc.setFontSize(size); }
-      doc.text(title, cx, y + 6, mid);
-      doc.setFont("helvetica", "normal"); doc.setFontSize(6);
-      doc.text("RESULTS CHECKER CARD", cx, y + 9.5, mid);
-      doc.setLineWidth(0.15); doc.line(x + 4, y + 11.5, x + W - 4, y + 11.5);
+      while (size > 4.5 && doc.getTextWidth(title) > W - 8) { size -= 0.25; doc.setFontSize(size); }
+      doc.text(title, cx, y + 6.2, mid);
+      doc.setTextColor(...GOLD); doc.setFont("helvetica", "normal"); doc.setFontSize(5.8);
+      doc.text("RESULTS CHECKER CARD", cx, y + 10.2, mid);
 
-      doc.setFont("helvetica", "bold"); doc.setFontSize(8);
-      doc.text("Any form  |  one semester", cx, y + 16, mid);
+      /* gold rule */
+      doc.setDrawColor(...GOLD); doc.setLineWidth(0.5); doc.line(x + 4, y + 13.6, x + W - 4, y + 13.6);
 
-      doc.setFont("helvetica", "normal"); doc.setFontSize(5.5); doc.setTextColor(90);
-      doc.text("SERIAL NO.", cx, y + 21.5, mid);
-      doc.setTextColor(20); doc.setFont("courier", "bold"); doc.setFontSize(10);
-      doc.text(c.serial, cx, y + 26, mid);
+      /* form line */
+      doc.setTextColor(...BD); doc.setFont("helvetica", "bold"); doc.setFontSize(8);
+      doc.text("Any form  |  one semester", cx, y + 18, mid);
 
-      doc.setFont("helvetica", "normal"); doc.setFontSize(5.5); doc.setTextColor(90);
-      doc.text("PIN", cx, y + 31.5, mid);
-      doc.setTextColor(20); doc.setFont("courier", "bold"); doc.setFontSize(13);
-      doc.text(c.code, cx, y + 37, mid);
+      /* serial */
+      doc.setTextColor(...B); doc.setFont("helvetica", "normal"); doc.setFontSize(5.5);
+      doc.text("SERIAL NO.", cx, y + 22.6, mid);
+      doc.setTextColor(...BD); doc.setFont("courier", "bold"); doc.setFontSize(10);
+      doc.text(c.serial, cx, y + 26.8, mid);
 
-      /* web address (with the school link) and instructions */
-      doc.setFont("helvetica", "normal"); doc.setFontSize(5.1);
+      /* PIN on a white panel */
+      doc.setTextColor(...B); doc.setFont("helvetica", "normal"); doc.setFontSize(5.5);
+      doc.text("PIN", cx, y + 31.4, mid);
+      doc.setFillColor(255, 255, 255); doc.setDrawColor(...B); doc.setLineWidth(0.3);
+      doc.roundedRect(cx - 22, y + 33, 44, 8, 2, 2, "FD");
+      doc.setTextColor(...BD); doc.setFont("courier", "bold"); doc.setFontSize(12.5);
+      doc.text(c.code, cx, y + 38.6, mid);
+
+      /* web address and instructions */
+      doc.setTextColor(...BD); doc.setFont("helvetica", "normal"); doc.setFontSize(5.1);
       const goLines = doc.splitTextToSize("Go to: " + site, W - 6);
-      doc.text(goLines, cx, y + 42.2, mid);
-      const yy = y + 42.2 + goLines.length * 2.07 + 0.6;
+      doc.text(goLines, cx, y + 44.4, mid);
+      const yy = y + 44.4 + goLines.length * 2.05 + 0.6;
+      doc.setTextColor(70, 80, 100);
       doc.text("Choose semester; enter index number, PIN, date of birth.", cx, yy, mid);
-      doc.setFont("helvetica", "bold");
-      doc.text("Valid for " + uses + " checks. One semester, one student.", cx, y + H - 2.8, mid);
+
+      /* validity line */
+      doc.setTextColor(...B); doc.setFont("helvetica", "bold"); doc.setFontSize(5.6);
+      doc.text("Valid for " + uses + " checks. One semester, one student.", cx, y + H - 2.6, mid);
     });
     return doc;
   }
@@ -107,6 +128,8 @@
     const btn = $("genBtn"); btn.disabled = true; $("pdfAgain").hidden = true; last = null;
     try {
       await loadJsPdf(); // load the PDF tool first, so no cards are made if it fails
+      const { data: schoolInfo } = await sb.rpc("get_school_info", { p_school: sc.slug });
+      const brand = (schoolInfo && schoolInfo.brand_color) || "#1d4f9f";
       /* The server returns at most 1000 rows per request, so ask for 1000 at a time
          and keep every card. Only a complete list is shown, so no PIN is lost. */
       const CHUNK = 1000;
@@ -126,7 +149,7 @@
       const cards = got.map((r) => ({ serial: r.serial_number, code: r.code }));
       const name = "checker-cards-" + sc.slug + "-" +
         (batch || "batch").replace(/[^A-Za-z0-9_-]+/g, "_") + ".pdf";
-      last = { cards, uses, name, school: sc };
+      last = { cards, uses, name, school: sc, brand };
       $("pdfAgain").hidden = false;
       save(last);
       show($("cMsg"), "ok", cards.length + " cards created for " + (sc.name || sc.slug) + " on " + Math.ceil(cards.length / 15) +
